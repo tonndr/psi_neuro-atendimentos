@@ -1,0 +1,1111 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistema de Atendimentos - Neuropsicologia</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- React & ReactDOM -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <!-- Babel for JSX -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <!-- Supabase JS Client -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <!-- FontAwesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        body { font-family: 'Inter', sans-serif; }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 antialiased min-h-screen">
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useMemo } = React;
+
+        const TIME_SLOTS = [
+            "08:00 - 08:40",
+            "08:40 - 09:20",
+            "09:20 - 10:00",
+            "10:00 - 10:40",
+            "10:40 - 11:20",
+            "11:20 - 12:00",
+            "12:00 - 13:30", // Descanso
+            "13:20 - 14:00",
+            "14:00 - 14:40",
+            "14:40 - 15:20",
+            "15:20 - 16:00",
+            "16:00 - 16:40",
+            "16:40 - 17:20",
+            "17:20 - 18:00",
+            "18:00 - 18:40",
+            "18:40 - 19:20"
+        ];
+
+        const DAYS_OF_WEEK = [
+            { key: 'segunda', label: 'Segunda-feira', short: 'Segunda' },
+            { key: 'terca', label: 'Terça-feira', short: 'Terça' },
+            { key: 'quarta', label: 'Quarta-feira', short: 'Quarta' },
+            { key: 'quinta', label: 'Quinta-feira', short: 'Quinta' },
+            { key: 'sexta', label: 'Sexta-feira', short: 'Sexta' }
+        ];
+
+        const PRICES = {
+            terapia: 35.00,
+            avaliacao: 55.00
+        };
+
+        const ADMIN_CREDENTIALS = {
+            email: 'admin',
+            password: 'ToT1267AGzzcso1$'
+        };
+
+        function App() {
+            const [supabaseUrl, setSupabaseUrl] = useState(localStorage.getItem('sb_url') || '');
+            const [supabaseKey, setSupabaseKey] = useState(localStorage.getItem('sb_key') || '');
+            const [supabaseClient, setSupabaseClient] = useState(null);
+            const [showConfigModal, setShowConfigModal] = useState(false);
+            const [showCreateUserModal, setShowCreateUserModal] = useState(false);
+
+            const [professional, setProfessional] = useState(JSON.parse(localStorage.getItem('current_prof') || 'null'));
+            const [email, setEmail] = useState('');
+            const [password, setPassword] = useState('');
+            const [profName, setProfName] = useState('');
+            const [authMode, setAuthMode] = useState('login'); // 'login' | 'register' | 'forgot'
+            const [authError, setAuthError] = useState('');
+            const [authSuccess, setAuthSuccess] = useState('');
+
+            // Admin Create User Form State
+            const [newAdminUserName, setNewAdminUserName] = useState('');
+            const [newAdminUserEmail, setNewAdminUserEmail] = useState('');
+            const [newAdminUserPassword, setNewAdminUserPassword] = useState('');
+            const [adminCreateMsg, setAdminCreateMsg] = useState({ type: '', text: '' });
+
+            const [allProfessionals, setAllProfessionals] = useState([]);
+            const [selectedProfIdForAdmin, setSelectedProfIdForAdmin] = useState(null);
+
+            // Custom Cycle Date Range
+            const [cycleStartDate, setCycleStartDate] = useState('2026-09-18');
+            const [cycleEndDate, setCycleEndDate] = useState('2026-10-17');
+            const [selectedWeekIndex, setSelectedWeekIndex] = useState(0);
+            const [serviceDiscount, setServiceDiscount] = useState(false);
+            
+            const [scheduleData, setScheduleData] = useState({});
+            const [dailySettings, setDailySettings] = useState({});
+            const [loading, setLoading] = useState(false);
+
+            useEffect(() => {
+                if (supabaseUrl && supabaseKey) {
+                    try {
+                        const client = window.supabase.createClient(supabaseUrl, supabaseKey);
+                        setSupabaseClient(client);
+                    } catch (e) {
+                        console.error("Erro ao inicializar Supabase:", e);
+                    }
+                }
+            }, [supabaseUrl, supabaseKey]);
+
+            const cycleRangeAndWeeks = useMemo(() => {
+                const startDt = new Date(cycleStartDate + 'T00:00:00');
+                const endDt = new Date(cycleEndDate + 'T00:00:00');
+
+                const weeks = [];
+                let curr = new Date(startDt);
+                while (curr.getDay() !== 1) {
+                    curr.setDate(curr.getDate() - 1);
+                }
+
+                while (curr <= endDt || weeks.length < 6) {
+                    const weekDays = [];
+                    for (let i = 0; i < 5; i++) {
+                        const d = new Date(curr);
+                        d.setDate(curr.getDate() + i);
+                        weekDays.push({
+                            dateStr: d.toISOString().split('T')[0],
+                            formatted: d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }),
+                            dayOfWeek: DAYS_OF_WEEK[i].short,
+                            dateObj: d
+                        });
+                    }
+                    weeks.push({
+                        id: weeks.length,
+                        start: weekDays[0].formatted,
+                        end: weekDays[4].formatted,
+                        days: weekDays
+                    });
+                    curr.setDate(curr.getDate() + 7);
+                    if (curr > endDt && weeks.length >= 4) break;
+                }
+
+                return {
+                    startDateStr: cycleStartDate,
+                    endDateStr: cycleEndDate,
+                    weeks
+                };
+            }, [cycleStartDate, cycleEndDate]);
+
+            const monthWeeks = cycleRangeAndWeeks.weeks;
+            const currentWeek = monthWeeks[selectedWeekIndex] || monthWeeks[0] || { days: [] };
+
+            const activeProfessionalId = useMemo(() => {
+                if (!professional) return null;
+                if (professional.role === 'admin' && selectedProfIdForAdmin) {
+                    return selectedProfIdForAdmin;
+                }
+                return professional.id;
+            }, [professional, selectedProfIdForAdmin]);
+
+            useEffect(() => {
+                if (professional && professional.role === 'admin') {
+                    fetchAllProfessionals();
+                }
+            }, [professional]);
+
+            const fetchAllProfessionals = async () => {
+                if (supabaseClient) {
+                    const { data } = await supabaseClient.from('profiles').select('*');
+                    if (data && data.length > 0) {
+                        setAllProfessionals(data);
+                        if (!selectedProfIdForAdmin) setSelectedProfIdForAdmin(data[0].id);
+                    } else {
+                        const demoProfs = JSON.parse(localStorage.getItem('demo_profs') || '[]');
+                        const defaultProfs = [{ id: 'demo-prof-1', name: 'Dr. João Neuropsicólogo', email: 'joao@neuro.com' }, ...demoProfs];
+                        setAllProfessionals(defaultProfs);
+                        if (!selectedProfIdForAdmin) setSelectedProfIdForAdmin(defaultProfs[0].id);
+                    }
+                } else {
+                    const demoProfs = JSON.parse(localStorage.getItem('demo_profs') || '[]');
+                    const defaultProfs = [{ id: 'demo-prof-1', name: 'Dr. João Neuropsicólogo', email: 'joao@neuro.com' }, ...demoProfs];
+                    setAllProfessionals(defaultProfs);
+                    if (defaultProfs.length > 0 && !selectedProfIdForAdmin) {
+                        setSelectedProfIdForAdmin(defaultProfs[0].id);
+                    }
+                }
+            };
+
+            // Admin action to create a user directly
+            const handleAdminCreateUser = async (e) => {
+                e.preventDefault();
+                setAdminCreateMsg({ type: '', text: '' });
+                if (!newAdminUserName || !newAdminUserEmail || !newAdminUserPassword) {
+                    setAdminCreateMsg({ type: 'error', text: 'Preencha todos os campos.' });
+                    return;
+                }
+
+                if (supabaseClient) {
+                    try {
+                        const { data, error } = await supabaseClient.auth.signUp({
+                            email: newAdminUserEmail,
+                            password: newAdminUserPassword,
+                            options: { data: { full_name: newAdminUserName } }
+                        });
+                        if (error) {
+                            setAdminCreateMsg({ type: 'error', text: error.message });
+                        } else if (data.user) {
+                            await supabaseClient.from('profiles').insert([{
+                                id: data.user.id,
+                                name: newAdminUserName,
+                                email: newAdminUserEmail
+                            }]);
+                            setAdminCreateMsg({ type: 'success', text: `Profissional ${newAdminUserName} criado com sucesso!` });
+                            setNewAdminUserName('');
+                            setNewAdminUserEmail('');
+                            setNewAdminUserPassword('');
+                            fetchAllProfessionals();
+                        }
+                    } catch (err) {
+                        setAdminCreateMsg({ type: 'error', text: err.message });
+                    }
+                } else {
+                    let profs = JSON.parse(localStorage.getItem('demo_profs') || '[]');
+                    if (profs.some(p => p.email === newAdminUserEmail)) {
+                        setAdminCreateMsg({ type: 'error', text: 'E-mail já cadastrado.' });
+                        return;
+                    }
+                    const newProf = { id: 'prof-' + Date.now(), name: newAdminUserName, email: newAdminUserEmail, password_hash: newAdminUserPassword };
+                    profs.push(newProf);
+                    localStorage.setItem('demo_profs', JSON.stringify(profs));
+                    setAdminCreateMsg({ type: 'success', text: `Profissional ${newAdminUserName} criado com sucesso!` });
+                    setNewAdminUserName('');
+                    setNewAdminUserEmail('');
+                    setNewAdminUserPassword('');
+                    fetchAllProfessionals();
+                }
+            };
+
+            useEffect(() => {
+                if (!activeProfessionalId) return;
+                loadData(activeProfessionalId);
+            }, [activeProfessionalId, selectedWeekIndex, cycleStartDate, cycleEndDate]);
+
+            const loadData = async (profId) => {
+                setLoading(true);
+                if (supabaseClient) {
+                    try {
+                        const dates = currentWeek.days.map(d => d.dateStr);
+                        const { data: appts, error } = await supabaseClient
+                            .from('appointments')
+                            .select('*')
+                            .eq('professional_id', profId)
+                            .in('date', dates);
+
+                        if (!error && appts) {
+                            const newSched = {};
+                            appts.forEach(a => {
+                                if (!newSched[a.date]) newSched[a.date] = {};
+                                newSched[a.date][a.time_slot] = {
+                                    patientName: a.patient_name || '',
+                                    type: a.appointment_type || 'terapia',
+                                    status: a.status || 'atendido'
+                                };
+                            });
+                            setScheduleData(newSched);
+                        }
+
+                        const { data: settings } = await supabaseClient
+                            .from('daily_settings')
+                            .select('*')
+                            .eq('professional_id', profId)
+                            .in('date', dates);
+
+                        if (settings) {
+                            const newSettings = {};
+                            settings.forEach(s => {
+                                newSettings[s.date] = { noAttendance: s.no_attendance };
+                            });
+                            setDailySettings(newSettings);
+                        }
+                    } catch (e) {
+                        console.error("Erro ao carregar do Supabase:", e);
+                        loadLocalData(profId);
+                    }
+                } else {
+                    loadLocalData(profId);
+                }
+                setLoading(false);
+            };
+
+            const loadLocalData = (profId) => {
+                const stored = localStorage.getItem(`sched_${profId}_${cycleStartDate}_${cycleEndDate}`);
+                if (stored) {
+                    const parsed = JSON.parse(stored);
+                    setScheduleData(parsed.schedule || {});
+                    setDailySettings(parsed.daily || {});
+                } else {
+                    setScheduleData({});
+                    setDailySettings({});
+                }
+            };
+
+            const saveDataToStorage = async (newSched, newDaily) => {
+                setScheduleData(newSched);
+                setDailySettings(newDaily);
+
+                const profId = activeProfessionalId;
+                if (!profId) return;
+
+                if (supabaseClient) {
+                    try {
+                        for (const date of Object.keys(newSched)) {
+                            for (const slot of Object.keys(newSched[date])) {
+                                const item = newSched[date][slot];
+                                await supabaseClient.from('appointments').upsert({
+                                    professional_id: profId,
+                                    date: date,
+                                    time_slot: slot,
+                                    patient_name: item.patientName,
+                                    appointment_type: item.type,
+                                    status: item.status
+                                }, { onConflict: 'professional_id,date,time_slot' });
+                            }
+                        }
+
+                        for (const date of Object.keys(newDaily)) {
+                            await supabaseClient.from('daily_settings').upsert({
+                                professional_id: profId,
+                                date: date,
+                                no_attendance: newDaily[date].noAttendance
+                            }, { onConflict: 'professional_id,date' });
+                        }
+                    } catch (e) {
+                        console.error("Erro ao salvar no Supabase:", e);
+                    }
+                } else {
+                    localStorage.setItem(`sched_${profId}_${cycleStartDate}_${cycleEndDate}`, JSON.stringify({
+                        schedule: newSched,
+                        daily: newDaily
+                    }));
+                }
+            };
+
+            const updateSlot = (dateStr, slot, field, value) => {
+                const newSched = JSON.parse(JSON.stringify(scheduleData));
+                if (!newSched[dateStr]) newSched[dateStr] = {};
+                if (!newSched[dateStr][slot]) {
+                    newSched[dateStr][slot] = { patientName: '', type: 'terapia', status: 'atendido' };
+                }
+                newSched[dateStr][slot][field] = value;
+                saveDataToStorage(newSched, dailySettings);
+            };
+
+            const toggleNoAttendance = (dateStr, checked) => {
+                const newDaily = JSON.parse(JSON.stringify(dailySettings));
+                if (!newDaily[dateStr]) newDaily[dateStr] = {};
+                newDaily[dateStr].noAttendance = checked;
+                saveDataToStorage(scheduleData, newDaily);
+            };
+
+            const handleLogin = async (e) => {
+                e.preventDefault();
+                setAuthError('');
+                setAuthSuccess('');
+
+                if ((email === ADMIN_CREDENTIALS.email || email === 'admin@neuro.com') && password === ADMIN_CREDENTIALS.password) {
+                    const adminUser = { id: 'admin-master', name: 'Administrador do Sistema', email: 'admin', role: 'admin' };
+                    setProfessional(adminUser);
+                    localStorage.setItem('current_prof', JSON.stringify(adminUser));
+                    return;
+                }
+
+                if (supabaseClient) {
+                    try {
+                        const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
+                        if (error) {
+                            setAuthError('E-mail ou senha incorretos: ' + error.message);
+                        } else if (data.user) {
+                            const { data: profile } = await supabaseClient
+                                .from('profiles')
+                                .select('*')
+                                .eq('id', data.user.id)
+                                .single();
+
+                            const prof = { 
+                                id: data.user.id, 
+                                name: profile?.name || data.user.email, 
+                                email: data.user.email, 
+                                role: 'professional' 
+                            };
+                            setProfessional(prof);
+                            localStorage.setItem('current_prof', JSON.stringify(prof));
+                        }
+                    } catch (err) {
+                        setAuthError('Erro na autenticação: ' + err.message);
+                    }
+                } else {
+                    let profs = JSON.parse(localStorage.getItem('demo_profs') || '[]');
+                    let found = profs.find(p => p.email === email && p.password_hash === password);
+                    if (!found && email === 'dr.joao@neuro.com' && password === '123456') {
+                        found = { id: 'demo-prof-1', name: 'Dr. João Neuropsicólogo', email };
+                    }
+                    if (found) {
+                        const prof = { ...found, role: 'professional' };
+                        setProfessional(prof);
+                        localStorage.setItem('current_prof', JSON.stringify(prof));
+                    } else {
+                        setAuthError('E-mail ou senha incorretos. (Admin: admin / ToT1267AGzzcso1$)');
+                    }
+                }
+            };
+
+            const handleRegister = async (e) => {
+                e.preventDefault();
+                setAuthError('');
+                setAuthSuccess('');
+                if (!profName || !email || !password) {
+                    setAuthError('Preencha todos os campos.');
+                    return;
+                }
+
+                if (supabaseClient) {
+                    try {
+                        const { data, error } = await supabaseClient.auth.signUp({ 
+                            email, 
+                            password,
+                            options: { data: { full_name: profName } }
+                        });
+                        if (error) {
+                            setAuthError('Erro ao cadastrar: ' + error.message);
+                        } else if (data.user) {
+                            await supabaseClient.from('profiles').insert([{
+                                id: data.user.id,
+                                name: profName,
+                                email: email
+                            }]);
+                            setAuthSuccess('Conta criada com sucesso! Faça login.');
+                            setAuthMode('login');
+                        }
+                    } catch (err) {
+                        setAuthError('Erro: ' + err.message);
+                    }
+                } else {
+                    let profs = JSON.parse(localStorage.getItem('demo_profs') || '[]');
+                    if (profs.some(p => p.email === email)) {
+                        setAuthError('E-mail já cadastrado.');
+                        return;
+                    }
+                    const newProf = { id: 'prof-' + Date.now(), name: profName, email, password_hash: password, role: 'professional' };
+                    profs.push(newProf);
+                    localStorage.setItem('demo_profs', JSON.stringify(profs));
+                    setAuthSuccess('Cadastro realizado com sucesso! Faça login.');
+                    setAuthMode('login');
+                }
+            };
+
+            const handleForgotPassword = async (e) => {
+                e.preventDefault();
+                setAuthError('');
+                setAuthSuccess('');
+                if (!email) {
+                    setAuthError('Informe seu e-mail cadastrado.');
+                    return;
+                }
+
+                if (supabaseClient) {
+                    try {
+                        const { error } = await supabaseClient.auth.resetPasswordForEmail(email, {
+                            redirectTo: window.location.href,
+                        });
+                        if (error) {
+                            setAuthError('Erro ao enviar e-mail: ' + error.message);
+                        } else {
+                            setAuthSuccess('Instruções de redefinição de senha enviadas para o seu e-mail!');
+                        }
+                    } catch (err) {
+                        setAuthError('Erro: ' + err.message);
+                    }
+                } else {
+                    setAuthSuccess('Simulação: E-mail de redefinição enviado para ' + email);
+                }
+            };
+
+            const handleLogout = () => {
+                setProfessional(null);
+                localStorage.removeItem('current_prof');
+                if (supabaseClient) supabaseClient.auth.signOut();
+            };
+
+            const cycleFinancials = useMemo(() => {
+                let terapiaCount = 0;
+                let avaliacaoCount = 0;
+
+                const startDt = new Date(cycleStartDate + 'T00:00:00');
+                const endDt = new Date(cycleEndDate + 'T23:59:59');
+
+                monthWeeks.forEach(week => {
+                    week.days.forEach(day => {
+                        const dObj = day.dateObj;
+                        if (dObj >= startDt && dObj <= endDt) {
+                            const dateStr = day.dateStr;
+                            const daySched = scheduleData[dateStr] || {};
+                            const isNoAttendance = dailySettings[dateStr]?.noAttendance;
+
+                            if (!isNoAttendance) {
+                                TIME_SLOTS.forEach(slot => {
+                                    const item = daySched[slot];
+                                    if (item && slot !== "12:00 - 13:30") {
+                                        if (item.status === 'atendido' || item.status === 'faltou_remunerada') {
+                                            if (item.type === 'terapia') terapiaCount++;
+                                            if (item.type === 'avaliacao') avaliacaoCount++;
+                                        }
+                                    }
+                                });
+                            }
+                        }
+                    });
+                });
+
+                const terapiaTotal = terapiaCount * PRICES.terapia;
+                const avaliacaoTotal = avaliacaoCount * PRICES.avaliacao;
+                const subtotal = terapiaTotal + avaliacaoTotal;
+                const discountAmount = serviceDiscount ? subtotal * 0.1533 : 0;
+                const grandTotal = subtotal - discountAmount;
+                const totalAppointments = terapiaCount + avaliacaoCount;
+
+                return {
+                    terapiaCount,
+                    terapiaTotal,
+                    avaliacaoCount,
+                    avaliacaoTotal,
+                    subtotal,
+                    discountAmount,
+                    grandTotal,
+                    totalAppointments
+                };
+            }, [scheduleData, dailySettings, monthWeeks, cycleStartDate, cycleEndDate, serviceDiscount]);
+
+            const saveSupabaseConfig = (e) => {
+                e.preventDefault();
+                localStorage.setItem('sb_url', supabaseUrl);
+                localStorage.setItem('sb_key', supabaseKey);
+                setShowConfigModal(false);
+                window.location.reload();
+            };
+
+            if (!professional) {
+                return (
+                    <div className="min-h-screen bg-gradient-to-br from-indigo-900 via-slate-900 to-slate-950 flex items-center justify-center p-4">
+                        <div className="bg-white/95 backdrop-blur-xl rounded-2xl shadow-2xl w-full max-w-md p-8 border border-white/20">
+                            <div className="text-center mb-6">
+                                <div className="inline-flex items-center justify-center w-16 h-16 bg-indigo-600 text-white rounded-2xl shadow-lg mb-3 text-2xl font-bold">
+                                    <i className="fa-solid fa-brain"></i>
+                                </div>
+                                <h1 className="text-2xl font-bold text-slate-900">NeuroAgenda Pro</h1>
+                                <p className="text-slate-500 text-xs mt-1">Senhas criptografadas & Recuperação por E-mail</p>
+                            </div>
+
+                            {authError && (
+                                <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-600 rounded-lg text-xs flex items-center gap-2">
+                                    <i className="fa-solid fa-circle-exclamation"></i>
+                                    <span>{authError}</span>
+                                </div>
+                            )}
+
+                            {authSuccess && (
+                                <div className="mb-4 p-3 bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-lg text-xs flex items-center gap-2">
+                                    <i className="fa-solid fa-circle-check"></i>
+                                    <span>{authSuccess}</span>
+                                </div>
+                            )}
+
+                            {authMode === 'register' && (
+                                <form onSubmit={handleRegister} className="space-y-4">
+                                    <div>
+                                        <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">Nome Completo</label>
+                                        <input 
+                                            type="text" 
+                                            value={profName} 
+                                            onChange={e => setProfName(e.target.value)} 
+                                            required 
+                                            className="w-full px-4 py-3 rounded-xl border border-slate-300 focus:ring-2 focus:ring-indigo-500 focus:outline-none text-sm"
+                                            placeholder="Dr(a). Nome Sobrenome"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">E-mail Profissional</label>
+                                        <input 
+                                            type="email" 
+                                            value={email} 
+                                            onChange={e => setEmail(e.target.value)} 
+                                            required 
+                                            className="w-full px-4 py-3 rounded-xl border border-slate-300 focus:ring-2 focus:ring-indigo-500 focus:outline-none text-sm"
+                                            placeholder="seu.email@neuro.com"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">Senha (Criptografada)</label>
+                                        <input 
+                                            type="password" 
+                                            value={password} 
+                                            onChange={e => setPassword(e.target.value)} 
+                                            required 
+                                            className="w-full px-4 py-3 rounded-xl border border-slate-300 focus:ring-2 focus:ring-indigo-500 focus:outline-none text-sm"
+                                            placeholder="••••••••"
+                                        />
+                                    </div>
+                                    <button type="submit" className="w-full bg-indigo-600 text-white font-semibold py-3 rounded-xl shadow-lg hover:bg-indigo-700 transition duration-200">
+                                        Criar Conta Profissional
+                                    </button>
+                                    <p className="text-center text-xs text-slate-600 mt-4">
+                                        Já tem uma conta? <button type="button" onClick={() => { setAuthMode('login'); setAuthError(''); setAuthSuccess(''); }} className="text-indigo-600 font-semibold hover:underline">Fazer Login</button>
+                                    </p>
+                                </form>
+                            )}
+
+                            {authMode === 'forgot' && (
+                                <form onSubmit={handleForgotPassword} className="space-y-4">
+                                    <p className="text-xs text-slate-600 mb-2">Informe seu e-mail cadastrado para receber as instruções de alteração de senha.</p>
+                                    <div>
+                                        <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">E-mail Cadastrado</label>
+                                        <input 
+                                            type="email" 
+                                            value={email} 
+                                            onChange={e => setEmail(e.target.value)} 
+                                            required 
+                                            className="w-full px-4 py-3 rounded-xl border border-slate-300 focus:ring-2 focus:ring-indigo-500 focus:outline-none text-sm"
+                                            placeholder="seu.email@neuro.com"
+                                        />
+                                    </div>
+                                    <button type="submit" className="w-full bg-indigo-600 text-white font-semibold py-3 rounded-xl shadow-lg hover:bg-indigo-700 transition duration-200">
+                                        Enviar E-mail de Recuperação
+                                    </button>
+                                    <p className="text-center text-xs text-slate-600 mt-4">
+                                        Lembrou a senha? <button type="button" onClick={() => { setAuthMode('login'); setAuthError(''); setAuthSuccess(''); }} className="text-indigo-600 font-semibold hover:underline">Fazer Login</button>
+                                    </p>
+                                </form>
+                            )}
+
+                            {authMode === 'login' && (
+                                <form onSubmit={handleLogin} className="space-y-4">
+                                    <div>
+                                        <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">E-mail ou Usuário</label>
+                                        <input 
+                                            type="text" 
+                                            value={email} 
+                                            onChange={e => setEmail(e.target.value)} 
+                                            required 
+                                            className="w-full px-4 py-3 rounded-xl border border-slate-300 focus:ring-2 focus:ring-indigo-500 focus:outline-none text-sm"
+                                            placeholder="ex: admin ou seu@email.com"
+                                        />
+                                    </div>
+                                    <div>
+                                        <div className="flex justify-between items-center mb-1">
+                                            <label className="block text-xs font-semibold text-slate-700 uppercase">Senha</label>
+                                            <button type="button" onClick={() => { setAuthMode('forgot'); setAuthError(''); setAuthSuccess(''); }} className="text-xs text-indigo-600 hover:underline font-medium">Esqueceu a senha?</button>
+                                        </div>
+                                        <input 
+                                            type="password" 
+                                            value={password} 
+                                            onChange={e => setPassword(e.target.value)} 
+                                            required 
+                                            className="w-full px-4 py-3 rounded-xl border border-slate-300 focus:ring-2 focus:ring-indigo-500 focus:outline-none text-sm"
+                                            placeholder="••••••••"
+                                        />
+                                    </div>
+                                    <button type="submit" className="w-full bg-indigo-600 text-white font-semibold py-3 rounded-xl shadow-lg hover:bg-indigo-700 transition duration-200">
+                                        Entrar na Agenda
+                                    </button>
+                                    <p className="text-center text-xs text-slate-600 mt-4">
+                                        Não tem cadastro? <button type="button" onClick={() => { setAuthMode('register'); setAuthError(''); setAuthSuccess(''); }} className="text-indigo-600 font-semibold hover:underline">Cadastre-se</button>
+                                    </p>
+                                    <div className="pt-2 text-center">
+                                        <button type="button" onClick={() => setShowConfigModal(true)} className="text-xs text-slate-400 hover:text-indigo-600">
+                                            <i className="fa-solid fa-database mr-1"></i> Configurar Supabase
+                                        </button>
+                                    </div>
+                                </form>
+                            )}
+                        </div>
+
+                        {showConfigModal && (
+                            <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+                                <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl">
+                                    <h3 className="text-lg font-bold text-slate-900 mb-2">Configuração do Supabase</h3>
+                                    <p className="text-xs text-slate-500 mb-4">Insira suas credenciais do Supabase para ativar autenticação segura.</p>
+                                    <form onSubmit={saveSupabaseConfig} className="space-y-4">
+                                        <div>
+                                            <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">Supabase URL</label>
+                                            <input 
+                                                type="text" 
+                                                value={supabaseUrl} 
+                                                onChange={e => setSupabaseUrl(e.target.value)} 
+                                                className="w-full px-3 py-2 rounded-lg border text-sm text-slate-800"
+                                                placeholder="https://xxx.supabase.co"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">Supabase Anon Key</label>
+                                            <input 
+                                                type="password" 
+                                                value={supabaseKey} 
+                                                onChange={e => setSupabaseKey(e.target.value)} 
+                                                className="w-full px-3 py-2 rounded-lg border text-sm text-slate-800"
+                                                placeholder="eyJhbGciOi..."
+                                            />
+                                        </div>
+                                        <div className="flex gap-2 justify-end pt-2">
+                                            <button type="button" onClick={() => setShowConfigModal(false)} className="px-4 py-2 text-sm text-slate-600 hover:bg-slate-100 rounded-lg">Cancelar</button>
+                                            <button type="submit" className="px-4 py-2 text-sm bg-indigo-600 text-white rounded-lg hover:bg-indigo-700">Salvar Conexão</button>
+                                        </div>
+                                    </form>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                );
+            }
+
+            const isAdmin = professional.role === 'admin';
+
+            return (
+                <div className="min-h-screen bg-slate-100 flex flex-col">
+                    {/* Top Navbar */}
+                    <header className="bg-slate-900 text-white shadow-md">
+                        <div className="max-w-7xl mx-auto px-4 py-3 flex justify-between items-center flex-wrap gap-4">
+                            <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center font-bold text-lg">
+                                    <i className="fa-solid fa-brain"></i>
+                                </div>
+                                <div>
+                                    <h1 className="font-bold text-lg leading-tight">NeuroAgenda Pro</h1>
+                                    <p className="text-xs text-indigo-300">
+                                        {isAdmin ? <span className="text-amber-400 font-semibold"><i className="fa-solid fa-shield-halved mr-1"></i> Administrador (Acesso Total)</span> : <span>Profissional: <strong className="text-white">{professional.name}</strong></span>}
+                                    </p>
+                                </div>
+                            </div>
+
+                            {isAdmin && (
+                                <div className="flex items-center gap-3 flex-wrap">
+                                    <div className="flex items-center gap-2 bg-slate-800 px-3 py-1.5 rounded-xl border border-slate-700">
+                                        <span className="text-xs text-slate-400 font-semibold uppercase">Profissional:</span>
+                                        <select 
+                                            value={selectedProfIdForAdmin || ''} 
+                                            onChange={e => setSelectedProfIdForAdmin(e.target.value)}
+                                            className="bg-slate-900 text-white text-xs font-semibold px-2 py-1 rounded-lg border border-slate-700 focus:outline-none"
+                                        >
+                                            {allProfessionals.map(p => (
+                                                <option key={p.id} value={p.id}>{p.name} ({p.email})</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                    <button onClick={() => setShowCreateUserModal(true)} className="bg-indigo-600 hover:bg-indigo-500 text-white px-3.5 py-2 rounded-xl text-xs font-semibold transition flex items-center gap-1.5 shadow-md">
+                                        <i className="fa-solid fa-user-plus"></i> Novo Profissional
+                                    </button>
+                                </div>
+                            )}
+
+                            <div className="flex items-center gap-3">
+                                <button onClick={() => setShowConfigModal(true)} className="text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 px-3 py-2 rounded-lg border border-slate-700 transition flex items-center gap-1.5">
+                                    <i className="fa-solid fa-database text-indigo-400"></i>
+                                    <span>{supabaseClient ? 'Supabase Conectado' : 'Modo Local'}</span>
+                                </button>
+                                <button onClick={handleLogout} className="bg-red-500/20 hover:bg-red-500/30 text-red-300 px-3 py-2 rounded-lg text-xs font-medium transition flex items-center gap-1.5">
+                                    <i className="fa-solid fa-right-from-bracket"></i> Sair
+                                </button>
+                            </div>
+                        </div>
+                    </header>
+
+                    {/* Main Content */}
+                    <main className="max-w-7xl mx-auto px-4 py-6 w-full flex-grow space-y-6">
+                        
+                        {/* Controls Bar */}
+                        <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-200 flex flex-wrap items-center justify-between gap-4">
+                            <div className="flex flex-wrap items-center gap-4">
+                                <div className="flex items-center gap-2 bg-indigo-50 px-3 py-2 rounded-xl border border-indigo-200">
+                                    <label className="text-xs font-bold uppercase text-indigo-900">Início do Ciclo:</label>
+                                    <input 
+                                        type="date" 
+                                        value={cycleStartDate} 
+                                        onChange={e => setCycleStartDate(e.target.value)}
+                                        className="px-2.5 py-1 bg-white border border-indigo-300 rounded-lg text-xs font-bold text-indigo-900 focus:outline-none"
+                                    />
+                                </div>
+                                <div className="flex items-center gap-2 bg-indigo-50 px-3 py-2 rounded-xl border border-indigo-200">
+                                    <label className="text-xs font-bold uppercase text-indigo-900">Fim do Ciclo:</label>
+                                    <input 
+                                        type="date" 
+                                        value={cycleEndDate} 
+                                        onChange={e => setCycleEndDate(e.target.value)}
+                                        className="px-2.5 py-1 bg-white border border-indigo-300 rounded-lg text-xs font-bold text-indigo-900 focus:outline-none"
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="flex items-center gap-2 overflow-x-auto pb-1">
+                                <span className="text-xs font-bold uppercase text-slate-500 mr-1">Semana:</span>
+                                {monthWeeks.map((week, idx) => (
+                                    <button 
+                                        key={week.id}
+                                        onClick={() => setSelectedWeekIndex(idx)}
+                                        className={`px-3.5 py-2 rounded-xl text-xs font-semibold transition ${selectedWeekIndex === idx ? 'bg-indigo-600 text-white shadow-md' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+                                    >
+                                        Semana {idx + 1} ({week.start} - {week.end})
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+
+                        {/* Financial Summary Card */}
+                        <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 rounded-2xl p-6 text-white shadow-xl border border-indigo-900/50">
+                            <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6">
+                                <div>
+                                    <span className="text-xs font-bold uppercase tracking-wider text-indigo-400 bg-indigo-500/20 px-3 py-1 rounded-full border border-indigo-500/30">
+                                        Fechamento do Ciclo ({cycleStartDate.split('-').reverse().join('/')} até {cycleEndDate.split('-').reverse().join('/')})
+                                    </span>
+                                    <h2 className="text-2xl font-extrabold mt-2">Total a Receber no Período</h2>
+                                    <p className="text-xs text-slate-400 mt-0.5">Calculado estritamente entre a data de início e data de fim informadas.</p>
+                                </div>
+
+                                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 w-full lg:w-auto">
+                                    <div className="bg-white/5 border border-white/10 rounded-xl p-3 text-center">
+                                        <p className="text-xs text-slate-400 font-medium">Terapias (R$ 35)</p>
+                                        <p className="text-lg font-bold text-emerald-400 mt-1">{cycleFinancials.terapiaCount} <span className="text-xs text-slate-400 font-normal">atend.</span></p>
+                                        <p className="text-xs text-slate-300">R$ {cycleFinancials.terapiaTotal.toFixed(2).replace('.', ',')}</p>
+                                    </div>
+                                    <div className="bg-white/5 border border-white/10 rounded-xl p-3 text-center">
+                                        <p className="text-xs text-slate-400 font-medium">Avaliações (R$ 55)</p>
+                                        <p className="text-lg font-bold text-indigo-400 mt-1">{cycleFinancials.avaliacaoCount} <span className="text-xs text-slate-400 font-normal">atend.</span></p>
+                                        <p className="text-xs text-slate-300">R$ {cycleFinancials.avaliacaoTotal.toFixed(2).replace('.', ',')}</p>
+                                    </div>
+                                    <div className="bg-white/5 border border-white/10 rounded-xl p-3 text-center">
+                                        <p className="text-xs text-slate-400 font-medium">Atendimentos Ciclo</p>
+                                        <p className="text-2xl font-extrabold text-white mt-1">{cycleFinancials.totalAppointments}</p>
+                                        <p className="text-xs text-slate-400">Total geral</p>
+                                    </div>
+                                    <div className="bg-indigo-600/30 border border-indigo-500/50 rounded-xl p-3 text-center flex flex-col justify-center">
+                                        <p className="text-xs text-indigo-200 font-bold uppercase">Total a Receber</p>
+                                        <p className="text-xl font-extrabold text-emerald-300 mt-0.5">R$ {cycleFinancials.grandTotal.toFixed(2).replace('.', ',')}</p>
+                                        {serviceDiscount && <span className="text-[10px] text-amber-300 font-medium">-15,33% aplicado</span>}
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Service Discount Checkbox */}
+                            <div className="mt-5 pt-4 border-t border-white/10 flex items-center justify-between flex-wrap gap-4">
+                                <label className="flex items-center gap-3 cursor-pointer select-none">
+                                    <input 
+                                        type="checkbox" 
+                                        checked={serviceDiscount} 
+                                        onChange={e => setServiceDiscount(e.target.checked)}
+                                        className="w-5 h-5 accent-indigo-500 rounded cursor-pointer"
+                                    />
+                                    <div>
+                                        <span className="text-sm font-bold text-white">Desconto de Serviço (15,33%)</span>
+                                        <p className="text-xs text-slate-400">Deduz automaticamente 15,33% do valor total a ser recebido no ciclo.</p>
+                                    </div>
+                                </label>
+                                <div className="text-xs text-slate-400">
+                                    Subtotal sem desconto: <span className="font-semibold text-white">R$ {cycleFinancials.subtotal.toFixed(2).replace('.', ',')}</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Weekly Spreadsheet View */}
+                        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+                            <div className="bg-slate-900 text-white px-6 py-4 flex justify-between items-center">
+                                <div className="flex items-center gap-2">
+                                    <i className="fa-solid fa-calendar-days text-indigo-400"></i>
+                                    <h3 className="font-bold text-base">Agenda Semanal — Semana {selectedWeekIndex + 1} ({currentWeek.start} a {currentWeek.end})</h3>
+                                </div>
+                                <span className="text-xs bg-slate-800 text-slate-300 px-3 py-1 rounded-lg border border-slate-700">Segunda a Sexta</span>
+                            </div>
+
+                            {loading ? (
+                                <div className="p-12 text-center text-slate-500">
+                                    <i className="fa-solid fa-spinner fa-spin text-2xl text-indigo-600 mb-2"></i>
+                                    <p className="text-sm">Carregando horários...</p>
+                                </div>
+                            ) : (
+                                <div className="overflow-x-auto">
+                                    <table className="w-full text-left border-collapse">
+                                        <thead>
+                                            <tr className="bg-slate-100 border-b border-slate-200 text-xs font-bold text-slate-700 uppercase">
+                                                <th className="p-3 text-center border-r border-slate-200 w-32">Horário</th>
+                                                {currentWeek.days.map(day => {
+                                                    const isNoAtt = dailySettings[day.dateStr]?.noAttendance;
+                                                    const startDt = new Date(cycleStartDate + 'T00:00:00');
+                                                    const endDt = new Date(cycleEndDate + 'T23:59:59');
+                                                    const isInCycle = day.dateObj >= startDt && day.dateObj <= endDt;
+
+                                                    return (
+                                                        <th key={day.dateStr} className={`p-3 border-r border-slate-200 min-w-[240px] ${!isInCycle ? 'opacity-60 bg-slate-50' : ''}`}>
+                                                            <div className="flex justify-between items-center mb-1">
+                                                                <span>{day.dayOfWeek} ({day.formatted})</span>
+                                                                {!isInCycle && <span className="text-[10px] bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded font-semibold">Fora do Ciclo</span>}
+                                                            </div>
+                                                            <label className="flex items-center gap-1.5 text-[11px] font-normal text-slate-600 cursor-pointer bg-white px-2 py-1 rounded border border-slate-200 mt-1">
+                                                                <input 
+                                                                    type="checkbox" 
+                                                                    checked={!!isNoAtt} 
+                                                                    onChange={e => toggleNoAttendance(day.dateStr, e.target.checked)}
+                                                                    className="accent-red-500"
+                                                                />
+                                                                <span className={isNoAtt ? "font-bold text-red-600" : ""}>Não há atendimento</span>
+                                                            </label>
+                                                        </th>
+                                                    );
+                                                })}
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-200 text-sm">
+                                            {TIME_SLOTS.map(slot => {
+                                                const isRest = slot === "12:00 - 13:30";
+                                                return (
+                                                    <tr key={slot} className={isRest ? "bg-slate-100" : "hover:bg-slate-50/50"}>
+                                                        <td className="p-3 text-center font-bold text-xs text-slate-600 border-r border-slate-200 bg-slate-50/80">
+                                                            {slot}
+                                                            {isRest && <div className="text-[10px] text-amber-600 font-semibold mt-0.5">Pausa / Descanso</div>}
+                                                        </td>
+
+                                                        {currentWeek.days.map(day => {
+                                                            const isNoAtt = dailySettings[day.dateStr]?.noAttendance;
+                                                            const slotData = scheduleData[day.dateStr]?.[slot] || {
+                                                                patientName: '',
+                                                                type: 'terapia',
+                                                                status: isRest ? 'inativo' : 'atendido'
+                                                            };
+
+                                                            if (isNoAtt || isRest) {
+                                                                return (
+                                                                    <td key={day.dateStr} className="p-3 border-r border-slate-200 bg-slate-100/60 text-center text-xs text-slate-400 italic">
+                                                                        {isNoAtt ? "Dia inativo (Sem atendimento)" : "Horário de Descanso (Inativo)"}
+                                                                    </td>
+                                                                );
+                                                            }
+
+                                                            const isCounted = slotData.status === 'atendido' || slotData.status === 'faltou_remunerada';
+                                                            const slotValue = slotData.type === 'terapia' ? 35 : 55;
+
+                                                            return (
+                                                                <td key={day.dateStr} className="p-2 border-r border-slate-200 align-top">
+                                                                    <div className="space-y-2 bg-white p-2.5 rounded-xl border border-slate-200 shadow-sm">
+                                                                        <div>
+                                                                            <input 
+                                                                                type="text" 
+                                                                                placeholder="Nome do Paciente"
+                                                                                value={slotData.patientName}
+                                                                                onChange={e => updateSlot(day.dateStr, slot, 'patientName', e.target.value)}
+                                                                                className="w-full px-2.5 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-500 font-medium"
+                                                                            />
+                                                                        </div>
+
+                                                                        <div className="flex items-center justify-between gap-2">
+                                                                            <select 
+                                                                                value={slotData.type}
+                                                                                onChange={e => updateSlot(day.dateStr, slot, 'type', e.target.value)}
+                                                                                className="w-full px-2 py-1 text-xs bg-indigo-50 text-indigo-900 font-semibold border border-indigo-200 rounded-lg focus:outline-none"
+                                                                            >
+                                                                                <option value="terapia">Terapia (R$ 35)</option>
+                                                                                <option value="avaliacao">Avaliação (R$ 55)</option>
+                                                                            </select>
+                                                                        </div>
+
+                                                                        <div>
+                                                                            <select 
+                                                                                value={slotData.status}
+                                                                                onChange={e => updateSlot(day.dateStr, slot, 'status', e.target.value)}
+                                                                                className={`w-full px-2 py-1 text-xs font-semibold rounded-lg border focus:outline-none ${
+                                                                                    slotData.status === 'atendido' ? 'bg-emerald-50 text-emerald-800 border-emerald-300' :
+                                                                                    slotData.status === 'faltou_remunerada' ? 'bg-blue-50 text-blue-800 border-blue-300' :
+                                                                                    slotData.status === 'faltou_nao_remunerada' ? 'bg-red-50 text-red-800 border-red-300' :
+                                                                                    'bg-slate-100 text-slate-600 border-slate-300'
+                                                                                }`}
+                                                                            >
+                                                                                <option value="atendido">✓ Atendido</option>
+                                                                                <option value="faltou_remunerada">⚡ Faltou (Remunerada)</option>
+                                                                                <option value="faltou_nao_remunerada">✕ Faltou (Não remunerada)</option>
+                                                                                <option value="inativo">— Sem Atendimento</option>
+                                                                            </select>
+                                                                        </div>
+
+                                                                        <div className="flex justify-between items-center text-[11px] pt-1 border-t border-slate-100">
+                                                                            <span className="text-slate-400">Valor:</span>
+                                                                            <span className={`font-bold ${isCounted ? 'text-emerald-600' : 'text-slate-400 line-through'}`}>
+                                                                                R$ {slotValue.toFixed(2).replace('.', ',')}
+                                                                            </span>
+                                                                        </div>
+                                                                    </div>
+                                                                </td>
+                                                            );
+                                                        })}
+                                                    </tr>
+                                                );
+                                            })}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            )}
+                        </div>
+
+                    </main>
+
+                    {/* Admin Create User Modal */}
+                    {showCreateUserModal && (
+                        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+                            <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl">
+                                <div className="flex justify-between items-center mb-4">
+                                    <h3 className="text-lg font-bold text-slate-900">Cadastrar Novo Profissional</h3>
+                                    <button onClick={() => setShowCreateUserModal(false)} className="text-slate-400 hover:text-slate-600"><i className="fa-solid fa-xmark text-lg"></i></button>
+                                </div>
+                                <p className="text-xs text-slate-500 mb-4">Como administrador, você pode criar o acesso inicial do profissional informando nome, e-mail e senha.</p>
+                                
+                                {adminCreateMsg.text && (
+                                    <div className={`mb-4 p-3 rounded-lg text-xs flex items-center gap-2 ${adminCreateMsg.type === 'error' ? 'bg-red-50 text-red-600 border border-red-200' : 'bg-emerald-50 text-emerald-700 border border-emerald-200'}`}>
+                                        <i className={adminCreateMsg.type === 'error' ? 'fa-solid fa-circle-exclamation' : 'fa-solid fa-circle-check'}></i>
+                                        <span>{adminCreateMsg.text}</span>
+                                    </div>
+                                )}
+
+                                <form onSubmit={handleAdminCreateUser} className="space-y-4">
+                                    <div>
+                                        <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">Nome do Profissional</label>
+                                        <input 
+                                            type="text" 
+                                            value={newAdminUserName} 
+                                            onChange={e => setNewAdminUserName(e.target.value)} 
+                                            required 
+                                            className="w-full px-3 py-2.5 rounded-xl border text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                            placeholder="Dr(a). Nome Sobrenome"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">E-mail Profissional</label>
+                                        <input 
+                                            type="email" 
+                                            value={newAdminUserEmail} 
+                                            onChange={e => setNewAdminUserEmail(e.target.value)} 
+                                            required 
+                                            className="w-full px-3 py-2.5 rounded-xl border text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                            placeholder="profissional@neuro.com"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">Senha Inicial</label>
+                                        <input 
+                                            type="password" 
+                                            value={newAdminUserPassword} 
+                                            onChange={e => setNewAdminUserPassword(e.target.value)} 
+                                            required 
+                                            className="w-full px-3 py-2.5 rounded-xl border text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                            placeholder="••••••••"
+                                        />
+                                    </div>
+                                    <div className="flex gap-2 justify-end pt-2">
+                                        <button type="button" onClick={() => setShowCreateUserModal(false)} className="px-4 py-2 text-sm text-slate-600 hover:bg-slate-100 rounded-lg">Fechar</button>
+                                        <button type="submit" className="px-4 py-2 text-sm bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 shadow-md">Criar Profissional</button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Supabase Config Modal */}
+                    {showConfigModal && (
+                        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+                            <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl">
+                                <h3 className="text-lg font-bold text-slate-900 mb-2">Configuração do Supabase</h3>
+                                <p className="text-xs text-slate-500 mb-4">Insira suas credenciais do Supabase para ativar autenticação segura.</p>
+                                <form onSubmit={saveSupabaseConfig} className="space-y-4">
+                                    <div>
+                                        <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">Supabase URL</label>
+                                        <input 
+                                            type="text" 
+                                            value={supabaseUrl} 
+                                            onChange={e => setSupabaseUrl(e.target.value)} 
+                                            className="w-full px-3 py-2 rounded-lg border text-sm text-slate-800"
+                                            placeholder="https://xxx.supabase.co"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">Supabase Anon Key</label>
+                                        <input 
+                                            type="password" 
+                                            value={supabaseKey} 
+                                            onChange={e => setSupabaseKey(e.target.value)} 
+                                            className="w-full px-3 py-2 rounded-lg border text-sm text-slate-800"
+                                            placeholder="eyJhbGciOi..."
+                                        />
+                                    </div>
+                                    <div className="flex gap-2 justify-end pt-2">
+                                        <button type="button" onClick={() => setShowConfigModal(false)} className="px-4 py-2 text-sm text-slate-600 hover:bg-slate-100 rounded-lg">Cancelar</button>
+                                        <button type="submit" className="px-4 py-2 text-sm bg-indigo-600 text-white rounded-lg hover:bg-indigo-700">Salvar Conexão</button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    )}
+
+                    <footer className="bg-slate-900 text-white text-center py-4 text-xs mt-12 border-t border-slate-800">
+                        <p>Sistema de Atendimentos Neuropsicológicos • Integrado com Supabase Auth & GitHub</p>
+                    </footer>
+                </div>
+            );
+        }
+
+        ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+    </script>
+</body>
+</html>
