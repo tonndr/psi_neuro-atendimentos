@@ -403,7 +403,7 @@
                     try {
                         const { data, error } = await supabaseClient.auth.signInWithPassword({ email: email.trim(), password });
                         if (error) {
-                            setAuthError('E-mail ou senha incorretos: ' + error.message);
+                            setAuthError('E-mail ou senha incorretos. Verifique suas credenciais.');
                         } else if (data.user) {
                             let { data: profile } = await supabaseClient
                                 .from('profiles')
@@ -427,20 +427,17 @@
                             localStorage.setItem('current_prof', JSON.stringify(prof));
                         }
                     } catch (err) {
-                        setAuthError('Erro na autenticação: ' + err.message);
+                        setAuthError('Erro na autenticação. Verifique sua conexão com o Supabase.');
                     }
                 } else {
                     let profs = JSON.parse(localStorage.getItem('demo_profs') || '[]');
                     let found = profs.find(p => p.email === email.trim() && p.password_hash === password);
-                    if (!found && email.trim() === 'dr.joao@neuro.com' && password === '123456') {
-                        found = { id: 'demo-prof-1', name: 'Dr. João Neuropsicólogo', email };
-                    }
                     if (found) {
                         const prof = { ...found, role: 'professional' };
                         setProfessional(prof);
                         localStorage.setItem('current_prof', JSON.stringify(prof));
                     } else {
-                        setAuthError('E-mail ou senha incorretos. (Admin: admin / ToT1267AGzzcso1$)');
+                        setAuthError('E-mail ou senha incorretos.');
                     }
                 }
             };
@@ -1114,7 +1111,7 @@
                                     {allProfessionals.map(p => (
                                         <div key={p.id} className="p-3 flex items-center justify-between gap-4 hover:bg-slate-50">
                                             <div>
-                                                <p className="text-sm font-bold text-slate-800">{p.name}</p>
+                                                <p className="p-0 text-sm font-bold text-slate-800">{p.name}</p>
                                                 <p className="text-xs text-slate-500">{p.email}</p>
                                             </div>
                                             <button 
@@ -1167,7 +1164,7 @@
                                     <div className="flex gap-2 justify-end pt-2">
                                         <button type="button" onClick={() => setShowConfigModal(false)} className="px-4 py-2 text-sm text-slate-600 hover:bg-slate-100 rounded-lg">Cancelar</button>
                                         <button type="submit" className="px-4 py-2 text-sm bg-indigo-600 text-white rounded-lg hover:bg-indigo-700">Salvar Conexão</button>
-                                          </div>
+                                    </div>
                                 </form>
                             </div>
                         </div>
