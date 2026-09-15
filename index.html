@@ -64,8 +64,8 @@
         };
 
         function App() {
-            const [supabaseUrl, setSupabaseUrl] = useState(localStorage.getItem('sb_url') || '');
-            const [supabaseKey, setSupabaseKey] = useState(localStorage.getItem('sb_key') || '');
+            const [supabaseUrl, setSupabaseUrl] = useState((localStorage.getItem('sb_url') || '').trim());
+            const [supabaseKey, setSupabaseKey] = useState((localStorage.getItem('sb_key') || '').trim());
             const [supabaseClient, setSupabaseClient] = useState(null);
             const [showConfigModal, setShowConfigModal] = useState(false);
             const [showCreateUserModal, setShowCreateUserModal] = useState(false);
@@ -101,7 +101,7 @@
             useEffect(() => {
                 if (supabaseUrl && supabaseKey) {
                     try {
-                        const client = window.supabase.createClient(supabaseUrl, supabaseKey);
+                        const client = window.supabase.createClient(supabaseUrl.trim(), supabaseKey.trim());
                         setSupabaseClient(client);
                     } catch (e) {
                         console.error("Erro ao inicializar Supabase:", e);
@@ -163,7 +163,7 @@
                 if (professional && professional.role === 'admin') {
                     fetchAllProfessionals();
                 }
-            }, [professional]);
+            }, [professional, supabaseClient]);
 
             const fetchAllProfessionals = async () => {
                 if (supabaseClient) {
@@ -201,18 +201,17 @@
                 if (supabaseClient) {
                     try {
                         const { data, error } = await supabaseClient.auth.signUp({
-                            email: newAdminUserEmail,
+                            email: newAdminUserEmail.trim(),
                             password: newAdminUserPassword,
                             options: { data: { full_name: newAdminUserName } }
                         });
                         if (error) {
                             setAdminCreateMsg({ type: 'error', text: error.message });
                         } else if (data.user) {
-                            // Ensure profile row is upserted
                             await supabaseClient.from('profiles').upsert([{
                                 id: data.user.id,
                                 name: newAdminUserName,
-                                email: newAdminUserEmail
+                                email: newAdminUserEmail.trim()
                             }]);
                             setAdminCreateMsg({ type: 'success', text: `Profissional ${newAdminUserName} criado com sucesso!` });
                             setNewAdminUserName('');
@@ -240,13 +239,11 @@
                 }
             };
 
-            // Admin action to delete a professional user
             const handleDeleteUser = async (profId, profName) => {
                 if (!confirm(`Tem certeza que deseja excluir o profissional ${profName}? Todos os atendimentos associados serão removidos.`)) return;
 
                 if (supabaseClient) {
                     try {
-                        // Delete appointments and settings first or rely on cascade
                         await supabaseClient.from('appointments').delete().eq('professional_id', profId);
                         await supabaseClient.from('daily_settings').delete().eq('professional_id', profId);
                         const { error } = await supabaseClient.from('profiles').delete().eq('id', profId);
@@ -395,7 +392,7 @@
                 setAuthError('');
                 setAuthSuccess('');
 
-                if ((email === ADMIN_CREDENTIALS.email || email === 'admin@neuro.com') && password === ADMIN_CREDENTIALS.password) {
+                if ((email.trim() === ADMIN_CREDENTIALS.email || email.trim() === 'admin@neuro.com') && password === ADMIN_CREDENTIALS.password) {
                     const adminUser = { id: 'admin-master', name: 'Administrador do Sistema', email: 'admin', role: 'admin' };
                     setProfessional(adminUser);
                     localStorage.setItem('current_prof', JSON.stringify(adminUser));
@@ -404,11 +401,10 @@
 
                 if (supabaseClient) {
                     try {
-                        const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
+                        const { data, error } = await supabaseClient.auth.signInWithPassword({ email: email.trim(), password });
                         if (error) {
                             setAuthError('E-mail ou senha incorretos: ' + error.message);
                         } else if (data.user) {
-                            // Ensure profile exists
                             let { data: profile } = await supabaseClient
                                 .from('profiles')
                                 .select('*')
@@ -435,8 +431,8 @@
                     }
                 } else {
                     let profs = JSON.parse(localStorage.getItem('demo_profs') || '[]');
-                    let found = profs.find(p => p.email === email && p.password_hash === password);
-                    if (!found && email === 'dr.joao@neuro.com' && password === '123456') {
+                    let found = profs.find(p => p.email === email.trim() && p.password_hash === password);
+                    if (!found && email.trim() === 'dr.joao@neuro.com' && password === '123456') {
                         found = { id: 'demo-prof-1', name: 'Dr. João Neuropsicólogo', email };
                     }
                     if (found) {
@@ -461,7 +457,7 @@
                 if (supabaseClient) {
                     try {
                         const { data, error } = await supabaseClient.auth.signUp({ 
-                            email, 
+                            email: email.trim(), 
                             password,
                             options: { data: { full_name: profName } }
                         });
@@ -471,7 +467,7 @@
                             await supabaseClient.from('profiles').upsert([{
                                 id: data.user.id,
                                 name: profName,
-                                email: email
+                                email: email.trim()
                             }]);
                             setAuthSuccess('Conta criada com sucesso! Faça login.');
                             setAuthMode('login');
@@ -481,11 +477,11 @@
                     }
                 } else {
                     let profs = JSON.parse(localStorage.getItem('demo_profs') || '[]');
-                    if (profs.some(p => p.email === email)) {
+                    if (profs.some(p => p.email === email.trim())) {
                         setAuthError('E-mail já cadastrado.');
                         return;
                     }
-                    const newProf = { id: 'prof-' + Date.now(), name: profName, email, password_hash: password, role: 'professional' };
+                    const newProf = { id: 'prof-' + Date.now(), name: profName, email: email.trim(), password_hash: password, role: 'professional' };
                     profs.push(newProf);
                     localStorage.setItem('demo_profs', JSON.stringify(profs));
                     setAuthSuccess('Cadastro realizado com sucesso! Faça login.');
@@ -504,7 +500,7 @@
 
                 if (supabaseClient) {
                     try {
-                        const { error } = await supabaseClient.auth.resetPasswordForEmail(email, {
+                        const { error } = await supabaseClient.auth.resetPasswordForEmail(email.trim(), {
                             redirectTo: window.location.href,
                         });
                         if (error) {
@@ -577,8 +573,8 @@
 
             const saveSupabaseConfig = (e) => {
                 e.preventDefault();
-                localStorage.setItem('sb_url', supabaseUrl);
-                localStorage.setItem('sb_key', supabaseKey);
+                localStorage.setItem('sb_url', supabaseUrl.trim());
+                localStorage.setItem('sb_key', supabaseKey.trim());
                 setShowConfigModal(false);
                 window.location.reload();
             };
@@ -1164,14 +1160,14 @@
                                             type="password" 
                                             value={supabaseKey} 
                                             onChange={e => setSupabaseKey(e.target.value)} 
-                                            className="w-full px-3.5 py-2 rounded-lg border text-sm text-slate-800"
+                                            className="w-full px-3 py-2 rounded-lg border text-sm text-slate-800"
                                             placeholder="eyJhbGciOi..."
                                         />
                                     </div>
                                     <div className="flex gap-2 justify-end pt-2">
                                         <button type="button" onClick={() => setShowConfigModal(false)} className="px-4 py-2 text-sm text-slate-600 hover:bg-slate-100 rounded-lg">Cancelar</button>
                                         <button type="submit" className="px-4 py-2 text-sm bg-indigo-600 text-white rounded-lg hover:bg-indigo-700">Salvar Conexão</button>
-                                    </div>
+                                          </div>
                                 </form>
                             </div>
                         </div>
