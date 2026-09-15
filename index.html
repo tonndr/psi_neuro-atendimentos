@@ -69,6 +69,7 @@
             const [supabaseClient, setSupabaseClient] = useState(null);
             const [showConfigModal, setShowConfigModal] = useState(false);
             const [showCreateUserModal, setShowCreateUserModal] = useState(false);
+            const [showManageUsersModal, setShowManageUsersModal] = useState(false);
 
             const [professional, setProfessional] = useState(JSON.parse(localStorage.getItem('current_prof') || 'null'));
             const [email, setEmail] = useState('');
@@ -166,10 +167,12 @@
 
             const fetchAllProfessionals = async () => {
                 if (supabaseClient) {
-                    const { data } = await supabaseClient.from('profiles').select('*');
-                    if (data && data.length > 0) {
+                    const { data, error } = await supabaseClient.from('profiles').select('*');
+                    if (!error && data) {
                         setAllProfessionals(data);
-                        if (!selectedProfIdForAdmin) setSelectedProfIdForAdmin(data[0].id);
+                        if (data.length > 0 && (!selectedProfIdForAdmin || !data.some(p => p.id === selectedProfIdForAdmin))) {
+                            setSelectedProfIdForAdmin(data[0].id);
+                        }
                     } else {
                         const demoProfs = JSON.parse(localStorage.getItem('demo_profs') || '[]');
                         const defaultProfs = [{ id: 'demo-prof-1', name: 'Dr. João Neuropsicólogo', email: 'joao@neuro.com' }, ...demoProfs];
@@ -205,7 +208,8 @@
                         if (error) {
                             setAdminCreateMsg({ type: 'error', text: error.message });
                         } else if (data.user) {
-                            await supabaseClient.from('profiles').insert([{
+                            // Ensure profile row is upserted
+                            await supabaseClient.from('profiles').upsert([{
                                 id: data.user.id,
                                 name: newAdminUserName,
                                 email: newAdminUserEmail
@@ -232,6 +236,34 @@
                     setNewAdminUserName('');
                     setNewAdminUserEmail('');
                     setNewAdminUserPassword('');
+                    fetchAllProfessionals();
+                }
+            };
+
+            // Admin action to delete a professional user
+            const handleDeleteUser = async (profId, profName) => {
+                if (!confirm(`Tem certeza que deseja excluir o profissional ${profName}? Todos os atendimentos associados serão removidos.`)) return;
+
+                if (supabaseClient) {
+                    try {
+                        // Delete appointments and settings first or rely on cascade
+                        await supabaseClient.from('appointments').delete().eq('professional_id', profId);
+                        await supabaseClient.from('daily_settings').delete().eq('professional_id', profId);
+                        const { error } = await supabaseClient.from('profiles').delete().eq('id', profId);
+                        if (error) {
+                            alert('Erro ao excluir profissional: ' + error.message);
+                        } else {
+                            alert('Profissional excluído com sucesso!');
+                            fetchAllProfessionals();
+                        }
+                    } catch (err) {
+                        alert('Erro ao excluir: ' + err.message);
+                    }
+                } else {
+                    let profs = JSON.parse(localStorage.getItem('demo_profs') || '[]');
+                    profs = profs.filter(p => p.id !== profId);
+                    localStorage.setItem('demo_profs', JSON.stringify(profs));
+                    alert('Profissional excluído com sucesso!');
                     fetchAllProfessionals();
                 }
             };
@@ -376,11 +408,18 @@
                         if (error) {
                             setAuthError('E-mail ou senha incorretos: ' + error.message);
                         } else if (data.user) {
-                            const { data: profile } = await supabaseClient
+                            // Ensure profile exists
+                            let { data: profile } = await supabaseClient
                                 .from('profiles')
                                 .select('*')
                                 .eq('id', data.user.id)
                                 .single();
+
+                            if (!profile) {
+                                const newProfData = { id: data.user.id, name: data.user.email.split('@')[0], email: data.user.email };
+                                await supabaseClient.from('profiles').upsert([newProfData]);
+                                profile = newProfData;
+                            }
 
                             const prof = { 
                                 id: data.user.id, 
@@ -429,7 +468,7 @@
                         if (error) {
                             setAuthError('Erro ao cadastrar: ' + error.message);
                         } else if (data.user) {
-                            await supabaseClient.from('profiles').insert([{
+                            await supabaseClient.from('profiles').upsert([{
                                 id: data.user.id,
                                 name: profName,
                                 email: email
@@ -753,6 +792,9 @@
                                     <button onClick={() => setShowCreateUserModal(true)} className="bg-indigo-600 hover:bg-indigo-500 text-white px-3.5 py-2 rounded-xl text-xs font-semibold transition flex items-center gap-1.5 shadow-md">
                                         <i className="fa-solid fa-user-plus"></i> Novo Profissional
                                     </button>
+                                    <button onClick={() => setShowManageUsersModal(true)} className="bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 px-3.5 py-2 rounded-xl text-xs font-semibold transition flex items-center gap-1.5">
+                                        <i className="fa-solid fa-users-gear"></i> Gerenciar / Excluir
+                                    </button>
                                 </div>
                             )}
 
@@ -1062,6 +1104,43 @@
                         </div>
                     )}
 
+                    {/* Admin Manage / Delete Users Modal */}
+                    {showManageUsersModal && (
+                        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+                            <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl">
+                                <div className="flex justify-between items-center mb-4">
+                                    <h3 className="text-lg font-bold text-slate-900">Gerenciar Profissionais</h3>
+                                    <button onClick={() => setShowManageUsersModal(false)} className="text-slate-400 hover:text-slate-600"><i className="fa-solid fa-xmark text-lg"></i></button>
+                                </div>
+                                <p className="text-xs text-slate-500 mb-4">Lista de todos os profissionais cadastrados no sistema. Você pode excluir usuários se necessário.</p>
+                                
+                                <div className="max-h-80 overflow-y-auto divide-y divide-slate-100 border border-slate-200 rounded-xl mb-4">
+                                    {allProfessionals.map(p => (
+                                        <div key={p.id} className="p-3 flex items-center justify-between gap-4 hover:bg-slate-50">
+                                            <div>
+                                                <p className="text-sm font-bold text-slate-800">{p.name}</p>
+                                                <p className="text-xs text-slate-500">{p.email}</p>
+                                            </div>
+                                            <button 
+                                                onClick={() => handleDeleteUser(p.id, p.name)}
+                                                className="bg-red-50 hover:bg-red-100 text-red-600 px-3 py-1.5 rounded-lg text-xs font-semibold transition flex items-center gap-1 border border-red-200"
+                                            >
+                                                <i className="fa-solid fa-trash-can"></i> Excluir
+                                            </button>
+                                        </div>
+                                    ))}
+                                    {allProfessionals.length === 0 && (
+                                        <div className="p-6 text-center text-xs text-slate-400">Nenhum profissional cadastrado.</div>
+                                    )}
+                                </div>
+
+                                <div className="flex justify-end">
+                                    <button onClick={() => setShowManageUsersModal(false)} className="px-4 py-2 text-sm bg-slate-800 text-white rounded-lg hover:bg-slate-700">Fechar</button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
                     {/* Supabase Config Modal */}
                     {showConfigModal && (
                         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
@@ -1085,7 +1164,7 @@
                                             type="password" 
                                             value={supabaseKey} 
                                             onChange={e => setSupabaseKey(e.target.value)} 
-                                            className="w-full px-3 py-2 rounded-lg border text-sm text-slate-800"
+                                            className="w-full px-3.5 py-2 rounded-lg border text-sm text-slate-800"
                                             placeholder="eyJhbGciOi..."
                                         />
                                     </div>
