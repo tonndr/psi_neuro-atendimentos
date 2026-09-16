@@ -1,7 +1,7 @@
 // Proxy Supabase via Vercel: o navegador chama /api/sb?target=/rest/v1/...
 // e a função repassa ao Supabase com Host/SNI corretos.
 // Contorna DNS e filtros que bloqueiam *.supabase.co nos aparelhos.
-const TARGET = 'https://vkehcheqkfnudjrvoot.supabase.co';
+const TARGET = 'https://hztwdymmpfztkjwchzfa.supabase.co';
 
 module.exports = async function handler(req, res) {
   try {
@@ -41,7 +41,7 @@ module.exports = async function handler(req, res) {
       message: String((e && e.message) || e),
       causeCode: (cause && cause.code) || '',
       causeMsg: String((cause && (cause.message || cause)) || ''),
-      targetHost: 'vkehcheqkfnudjrvoot.supabase.co'
+      targetHost: 'hztwdymmpfztkjwchzfa.supabase.co'
     }));
   }
 };
