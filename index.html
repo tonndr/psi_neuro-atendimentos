@@ -63,6 +63,16 @@ function App(){
     return ws;
   },[cycleStart,cycleEnd]);
   const curWeek = weeks[weekIdx]||weeks[0]||{days:[]};
+  const enrichedDays = useMemo(()=>{
+    const s = new Date(cycleStart+'T00:00:00').getTime();
+    const e = new Date(cycleEnd+'T23:59:59').getTime();
+    return (curWeek.days||[]).map(function(d){
+      const t = d.dateObj.getTime();
+      const out = t < s || t > e;
+      const no = daily[d.dateStr] && daily[d.dateStr].noAttendance ? true : false;
+      return { dateStr: d.dateStr, formatted: d.formatted, dayOfWeek: d.dayOfWeek, dateObj: d.dateObj, outCycle: out, isNo: no };
+    });
+  },[curWeek,cycleStart,cycleEnd,daily]);
   const activeId = useMemo(()=>{ if(!professional) return null; if(professional.role==='admin'&&selProfId) return selProfId; return professional.id; },[professional,selProfId]);
   const isAdmin = professional && professional.role==='admin';
 
@@ -138,7 +148,7 @@ function App(){
 
   const fin = useMemo(()=>{
     let tc=0,ac=0; const s=new Date(cycleStart+'T00:00:00'),en=new Date(cycleEnd+'T23:59:59');
-    weeks.forEach(w=>w.days.forEach(d=>{ if(d.dateObj>=s&&d.dateObj<=en){ const ds=sched[d.dateStr]||{}; if(!daily[d.dateStr]?.noAttendance){ TIME_SLOTS.forEach(sl=>{ const it=ds[sl]; if(it&&sl!=="12:00 - 13:30"&&(it.status==='atendido'||it.status==='faltou_remunerada')){ if(it.type==='terapia')tc++; else ac++; } }); } } }));
+    weeks.forEach(w=>w.days.forEach(d=>{ if(d.dateObj>=s&&d.dateObj<=en){ const ds=sched[d.dateStr]||{}; if(!(daily[d.dateStr] && daily[d.dateStr].noAttendance)){ TIME_SLOTS.forEach(sl=>{ const it=ds[sl]; if(it&&sl!=="12:00 - 13:30"&&(it.status==='atendido'||it.status==='faltou_remunerada')){ if(it.type==='terapia')tc++; else ac++; } }); } } }));
     const tt=tc*35, at=ac*55, sub=tt+at, g=sub-(discount?sub*0.1533:0);
     return {tc,tt,ac,at,sub,g,tot:tc+ac};
   },[sched,daily,weeks,cycleStart,cycleEnd,discount]);
@@ -209,8 +219,8 @@ function App(){
       <div className="bg-white rounded-2xl border overflow-hidden">
         <div className="bg-slate-900 text-white px-4 py-3 text-sm font-bold">Agenda — Semana {weekIdx+1} ({curWeek.start} a {curWeek.end})</div>
         {loading?<div className="p-8 text-center text-sm text-slate-500">Carregando...</div>:<div className="overflow-x-auto"><table className="w-full text-sm">
-          <thead><tr className="bg-slate-100 text-xs uppercase"><th className="p-2 border-r w-28">Horário</th>{curWeek.days.map(d=>{const na=daily[d.dateStr]?.noAttendance; const inC=d.dateObj>=new Date(cycleStart+'T00:00:00')&&d.dateObj<=new Date(cycleEnd+'T23:59:59'); return (<th key={d.dateStr} className="p-2 border-r min-w-[220px]">{d.dayOfWeek} ({d.formatted}) {!inC&&<span className="text-[10px] bg-amber-100 px-1 rounded">Fora</span>}<br/><label className="text-[10px] font-normal normal-case bg-white border rounded px-1 py-0.5"><input type="checkbox" checked={!!na} onChange={e=>togDay(d.dateStr,e.target.checked)}/> Não há atendimento</label></th>);})}</tr></thead>
-          <tbody>{TIME_SLOTS.map(sl=>{const rest=sl==="12:00 - 13:30"; return (<tr key={sl} className="border-t"><td className="p-2 text-center text-xs font-bold border-r bg-slate-50">{sl}{rest&&<div className="text-amber-600">Descanso</div>}</td>{curWeek.days.map(d=>{const na=daily[d.dateStr]?.noAttendance; const sd=sched[d.dateStr]?.[sl]||{patientName:'',type:'terapia',status:'atendido'}; if(na||rest) return (<td key={d.dateStr} className="p-2 border-r bg-slate-100 text-[11px] italic text-slate-400 text-center">{na?'Dia inativo':'Descanso'}</td>); const cnt=sd.status==='atendido'||sd.status==='faltou_remunerada'; const val=sd.type==='terapia'?35:55; return (<td key={d.dateStr} className="p-1.5 border-r align-top"><div className="border rounded-xl p-2 space-y-1.5 bg-white">
+          <thead><tr className="bg-slate-100 text-xs uppercase"><th className="p-2 border-r w-28">Horário</th>{enrichedDays.map(function(d){ return (<th key={d.dateStr} className="p-2 border-r min-w-[220px]">{d.dayOfWeek} ({d.formatted}) {d.outCycle ? (<span className="text-[10px] bg-amber-100 px-1 rounded">Fora</span>) : null}<br/><label className="text-[10px] font-normal normal-case bg-white border rounded px-1 py-0.5"><input type="checkbox" checked={d.isNo} onChange={e=>togDay(d.dateStr,e.target.checked)}/> Não há atendimento</label></th>);})}</tr></thead>
+          <tbody>{TIME_SLOTS.map(sl=>{const rest=sl==="12:00 - 13:30"; return (<tr key={sl} className="border-t"><td className="p-2 text-center text-xs font-bold border-r bg-slate-50">{sl}{rest&&<div className="text-amber-600">Descanso</div>}</td>{enrichedDays.map(function(d){const daySched=sched[d.dateStr]; const sd=(daySched && daySched[sl]) || {patientName:'',type:'terapia',status:'atendido'}; if(d.isNo||rest) return (<td key={d.dateStr} className="p-2 border-r bg-slate-100 text-[11px] italic text-slate-400 text-center">{d.isNo?'Dia inativo':'Descanso'}</td>); const cnt=sd.status==='atendido'||sd.status==='faltou_remunerada'; const val=sd.type==='terapia'?35:55; return (<td key={d.dateStr} className="p-1.5 border-r align-top"><div className="border rounded-xl p-2 space-y-1.5 bg-white">
             <input value={sd.patientName} onChange={e=>updSlot(d.dateStr,sl,'patientName',e.target.value)} placeholder="Paciente" className="w-full text-xs border rounded px-2 py-1 bg-slate-50"/>
             <select value={sd.type} onChange={e=>updSlot(d.dateStr,sl,'type',e.target.value)} className="w-full text-xs border rounded px-1 py-1 bg-indigo-50 font-semibold"><option value="terapia">Terapia R$35</option><option value="avaliacao">Avaliação R$55</option></select>
             <select value={sd.status} onChange={e=>updSlot(d.dateStr,sl,'status',e.target.value)} className="w-full text-xs border rounded px-1 py-1 font-semibold"><option value="atendido">✓ Atendido</option><option value="faltou_remunerada">⚡ Faltou (Remun.)</option><option value="faltou_nao_remunerada">✕ Faltou (Não rem.)</option><option value="inativo">— Sem atend.</option></select>
