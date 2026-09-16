@@ -17,7 +17,7 @@
 <script type="text/babel">
 const { useState, useEffect, useMemo } = React;
 const FIXED_SUPABASE_URL = "https://vkehcheqkfnudjrvoot.supabase.co";
-const FIXED_SUPABASE_KEY = "sb_publishable_cGSIYp1Z0XnJBMAHOJVfsg_UZImnzDO";
+const FIXED_SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZrZWhjaGVxY2tmbnVkanJ2b290Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODk0ODczMzksImV4cCI6MjEwNTA2MzMzOX0.x7DHwHN5NNNq-RyhYCMh5Uk3DM9Mstaic8kbUm-c5UE";
 const TIME_SLOTS = ["08:00 - 08:40","08:40 - 09:20","09:20 - 10:00","10:00 - 10:40","10:40 - 11:20","11:20 - 12:00","12:00 - 13:30","13:20 - 14:00","14:00 - 14:40","14:40 - 15:20","15:20 - 16:00","16:00 - 16:40","16:40 - 17:20","17:20 - 18:00","18:00 - 18:40","18:40 - 19:20"];
 const DAYS = [{short:'Segunda'},{short:'Terça'},{short:'Quarta'},{short:'Quinta'},{short:'Sexta'}];
 const PRICES = { terapia: 35, avaliacao: 55 };
@@ -219,13 +219,13 @@ function App(){
       <div className="bg-white rounded-2xl border overflow-hidden">
         <div className="bg-slate-900 text-white px-4 py-3 text-sm font-bold">Agenda — Semana {weekIdx+1} ({curWeek.start} a {curWeek.end})</div>
         {loading?<div className="p-8 text-center text-sm text-slate-500">Carregando...</div>:<div className="overflow-x-auto"><table className="w-full text-sm">
-          <thead><tr className="bg-slate-100 text-xs uppercase"><th className="p-2 border-r w-28">Horário</th>{enrichedDays.map(function(d){ return (<th key={d.dateStr} className="p-2 border-r min-w-[220px]">{d.dayOfWeek} ({d.formatted}) {d.outCycle ? (<span className="text-[10px] bg-amber-100 px-1 rounded">Fora</span>) : null}<br/><label className="text-[10px] font-normal normal-case bg-white border rounded px-1 py-0.5"><input type="checkbox" checked={d.isNo} onChange={e=>togDay(d.dateStr,e.target.checked)}/> Não há atendimento</label></th>);})}</tr></thead>
+          <thead><tr className="bg-slate-100 text-xs uppercase"><th className="p-2 border-r w-28">Horário</th>{enrichedDays.map(function(d){ return (<th key={d.dateStr} className="p-2 border-r min-w-[220px]">{d.dayOfWeek} ({d.formatted}) {d.outCycle ? (<span className="text-[10px] bg-amber-100 px-1 rounded">Fora</span>) : null}<br/><label className="text-[10px] font-normal normal-case bg-white border rounded px-1 py-0.5"><input type="checkbox" checked={d.isNo} onChange={e=>togDay(d.dateStr,e.target.checked)}/> Não há atendimento</label></th>)})}</tr></thead>
           <tbody>{TIME_SLOTS.map(sl=>{const rest=sl==="12:00 - 13:30"; return (<tr key={sl} className="border-t"><td className="p-2 text-center text-xs font-bold border-r bg-slate-50">{sl}{rest&&<div className="text-amber-600">Descanso</div>}</td>{enrichedDays.map(function(d){const daySched=sched[d.dateStr]; const sd=(daySched && daySched[sl]) || {patientName:'',type:'terapia',status:'atendido'}; if(d.isNo||rest) return (<td key={d.dateStr} className="p-2 border-r bg-slate-100 text-[11px] italic text-slate-400 text-center">{d.isNo?'Dia inativo':'Descanso'}</td>); const cnt=sd.status==='atendido'||sd.status==='faltou_remunerada'; const val=sd.type==='terapia'?35:55; return (<td key={d.dateStr} className="p-1.5 border-r align-top"><div className="border rounded-xl p-2 space-y-1.5 bg-white">
             <input value={sd.patientName} onChange={e=>updSlot(d.dateStr,sl,'patientName',e.target.value)} placeholder="Paciente" className="w-full text-xs border rounded px-2 py-1 bg-slate-50"/>
             <select value={sd.type} onChange={e=>updSlot(d.dateStr,sl,'type',e.target.value)} className="w-full text-xs border rounded px-1 py-1 bg-indigo-50 font-semibold"><option value="terapia">Terapia R$35</option><option value="avaliacao">Avaliação R$55</option></select>
             <select value={sd.status} onChange={e=>updSlot(d.dateStr,sl,'status',e.target.value)} className="w-full text-xs border rounded px-1 py-1 font-semibold"><option value="atendido">✓ Atendido</option><option value="faltou_remunerada">⚡ Faltou (Remun.)</option><option value="faltou_nao_remunerada">✕ Faltou (Não rem.)</option><option value="inativo">— Sem atend.</option></select>
             <div className="text-[11px] flex justify-between"><span className="text-slate-400">Valor:</span><b className={cnt?'text-emerald-600':'text-slate-400 line-through'}>R$ {val.toFixed(2).replace('.',',')}</b></div>
-          </div></td>);});}</tr>);})}</tbody>
+          </div></td>)})}</tr>)})}</tbody>
         </table></div>}
       </div>
     </main>
