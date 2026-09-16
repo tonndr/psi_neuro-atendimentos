@@ -31,7 +31,7 @@
         // ==========================================
         const FIXED_SUPABASE_URL = "https://vkehcheqkfnudjrvoot.supabase.co";
         // Cole sua chave Anon / Publishable entre as aspas abaixo:
-        const FIXED_SUPABASE_KEY = sb_publishable_cGSIYp1Z0XnJBMAHOJVfsg_UZImnzDO; 
+        const FIXED_SUPABASE_KEY = "sb_publishable_cGSIYp1Z0XnJBMAHOJVfsg_UZImnzDO"; 
 
         const TIME_SLOTS = [
             "08:00 - 08:40",
@@ -510,7 +510,7 @@
 
                             {FIXED_SUPABASE_KEY === "COLE_SUA_CHAVE_ANON_AQUI" && (
                                 <div className="mb-4 p-3 bg-amber-50 border border-amber-200 text-amber-800 rounded-lg text-xs">
-                                    ⚠️ <strong>Atenção Desenvolvedor:</strong> Insira sua chave Anon do Supabase na constante <code>FIXED_SUPABASE_KEY</code> dentro do arquivo <code>index.html</code>.
+                                    ⚠️ <strong>Atenção:</strong> Insira sua chave Anon do Supabase na constante <code>FIXED_SUPABASE_KEY</code> dentro do arquivo <code>index.html</code> antes de enviar para o GitHub.
                                 </div>
                             )}
 
@@ -974,7 +974,7 @@
                                         />
                                     </div>
                                     <div className="flex gap-2 justify-end pt-2">
-                                        <button type="button" onClick={() =>setShowCreateUserModal(false)} className="px-4 py-2 text-sm text-slate-600 hover:bg-slate-100 rounded-lg">Fechar</button>
+                                        <button type="button" onClick={() => setShowCreateUserModal(false)} className="px-4 py-2 text-sm text-slate-600 hover:bg-slate-100 rounded-lg">Fechar</button>
                                         <button type="submit" className="px-4 py-2 text-sm bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 shadow-md">Criar Profissional</button>
                                     </div>
                                 </form>
@@ -986,7 +986,7 @@
                     {showManageUsersModal && (
                         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
                             <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl">
-                                <div className="flex justify-management items-center mb-4">
+                                <div className="flex justify-between items-center mb-4">
                                     <h3 className="text-lg font-bold text-slate-900">Gerenciar Profissionais</h3>
                                     <button onClick={() => setShowManageUsersModal(false)} className="text-slate-400 hover:text-slate-600"><i className="fa-solid fa-xmark text-lg"></i></button>
                                 </div>
@@ -1007,7 +1007,7 @@
                                             </button>
                                         </div>
                                     ))}
-                                    {allProfessionals.link && allProfessionals.length === 0 && (
+                                    {allProfessionals.length === 0 && (
                                         <div className="p-6 text-center text-xs text-slate-400">Nenhum profissional cadastrado.</div>
                                     )}
                                 </div>
