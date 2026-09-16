@@ -127,7 +127,7 @@ function App(){
     const h = await hashPass(loginPass);
     if(h!==data.password_hash){ setAuthError('Usuário ou senha incorretos.'); return; }
     if(data.must_change_password){ setPendingForce(data); setNewPwd1(''); setNewPwd2(''); return; }
-    const p={id:data.id,name:data.name,username:data.username,role:'professional'}; setProfessional(p); localStorage.setItem('current_prof',JSON.stringify(p));
+    const p={id:data.id,name:data.name,username:data.username,role:(data.username==='administrador'?'admin':'professional')}; setProfessional(p); localStorage.setItem('current_prof',JSON.stringify(p));
   };
 
   const doForceChange = async(e)=>{
@@ -137,7 +137,7 @@ function App(){
     const h = await hashPass(newPwd1);
     const {error} = await sb.from('professionals').update({password_hash:h,must_change_password:false}).eq('id',pendingForce.id);
     if(error){ setAuthError(error.message); return; }
-    const p={id:pendingForce.id,name:pendingForce.name,username:pendingForce.username,role:'professional'}; setProfessional(p); localStorage.setItem('current_prof',JSON.stringify(p)); setPendingForce(null); setAuthError('');
+    const p={id:pendingForce.id,name:pendingForce.name,username:pendingForce.username,role:(pendingForce.username==='administrador'?'admin':'professional')}; setProfessional(p); localStorage.setItem('current_prof',JSON.stringify(p)); setPendingForce(null); setAuthError('');
   };
 
   const doCreate = async(e)=>{

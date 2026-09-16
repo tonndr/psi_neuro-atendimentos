@@ -1,27 +1,32 @@
--- Supabase Schema with Supabase Auth Integration
+-- NeuroAgenda Pro: login por USUARIO + SENHA (hash SHA-256 hex de 'neuro$$'+senha)
+-- Execute tudo no SQL Editor do projeto novo e clique em Run.
 
--- 1. Profiles table linked to Supabase Auth (auth.users)
-create table if not exists profiles (
-  id uuid references auth.users on delete cascade primary key,
+drop table if exists appointments;
+drop table if exists daily_settings;
+drop table if exists profiles;
+drop table if exists professionals;
+
+create table professionals (
+  id uuid default gen_random_uuid() primary key,
   name text not null,
-  email text unique not null,
+  username text unique not null,
+  password_hash text not null,
+  must_change_password boolean default true not null,
   created_at timestamp with time zone default timezone('utc'::text, now()) not null
 );
 
--- 2. Daily settings (e.g. "Não há atendimento" per day)
-create table if not exists daily_settings (
+create table daily_settings (
   id uuid default gen_random_uuid() primary key,
-  professional_id uuid references profiles(id) on delete cascade not null,
+  professional_id uuid references professionals(id) on delete cascade not null,
   date date not null,
   no_attendance boolean default false,
   created_at timestamp with time zone default timezone('utc'::text, now()) not null,
   unique(professional_id, date)
 );
 
--- 3. Appointments table
-create table if not exists appointments (
+create table appointments (
   id uuid default gen_random_uuid() primary key,
-  professional_id uuid references profiles(id) on delete cascade not null,
+  professional_id uuid references professionals(id) on delete cascade not null,
   date date not null,
   time_slot text not null,
   patient_name text,
@@ -31,13 +36,18 @@ create table if not exists appointments (
   unique(professional_id, date, time_slot)
 );
 
--- Enable RLS
-alter table profiles enable row level security;
+alter table professionals enable row level security;
 alter table daily_settings enable row level security;
 alter table appointments enable row level security;
 
--- Policies
-create policy "Public profiles access" on profiles for select using (true);
-create policy "Users can update own profile" on profiles for update using (auth.uid() = id);
-create policy "Allow access to daily_settings" on daily_settings for all using (true) with check (true);
-create policy "Allow access to appointments" on appointments for all using (true) with check (true);
+grant all on professionals to anon, authenticated, service_role;
+grant all on appointments to anon, authenticated, service_role;
+grant all on daily_settings to anon, authenticated, service_role;
+
+create policy "Allow all professionals" on professionals for all using (true) with check (true);
+create policy "Allow all daily_settings" on daily_settings for all using (true) with check (true);
+create policy "Allow all appointments" on appointments for all using (true) with check (true);
+
+-- Usuario administrador inicial (senha ToT1267AGzzcso1$). Troque depois em "Trocar senha".
+insert into professionals (name, username, password_hash, must_change_password)
+values ('Administrador', 'administrador', 'eabb9a490bbed06ab6e88c577d770475f202b52ad24096dd21389e5de0640413', false);
