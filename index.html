@@ -26,6 +26,13 @@
     <script type="text/babel">
         const { useState, useEffect, useMemo } = React;
 
+        // ==========================================
+        // CREDENCIAIS FIXAS DO SUPABASE (100% EMBUTIDO)
+        // ==========================================
+        const FIXED_SUPABASE_URL = "https://vkehcheqkfnudjrvoot.supabase.co";
+        // Cole sua chave Anon / Publishable entre as aspas abaixo:
+        const FIXED_SUPABASE_KEY = sb_publishable_cGSIYp1Z0XnJBMAHOJVfsg_UZImnzDO; 
+
         const TIME_SLOTS = [
             "08:00 - 08:40",
             "08:40 - 09:20",
@@ -64,10 +71,7 @@
         };
 
         function App() {
-            const [supabaseUrl, setSupabaseUrl] = useState((localStorage.getItem('sb_url') || '').trim());
-            const [supabaseKey, setSupabaseKey] = useState((localStorage.getItem('sb_key') || '').trim());
             const [supabaseClient, setSupabaseClient] = useState(null);
-            const [showConfigModal, setShowConfigModal] = useState(false);
             const [showCreateUserModal, setShowCreateUserModal] = useState(false);
             const [showManageUsersModal, setShowManageUsersModal] = useState(false);
 
@@ -99,15 +103,15 @@
             const [loading, setLoading] = useState(false);
 
             useEffect(() => {
-                if (supabaseUrl && supabaseKey) {
+                if (FIXED_SUPABASE_URL && FIXED_SUPABASE_KEY && FIXED_SUPABASE_KEY !== "COLE_SUA_CHAVE_ANON_AQUI") {
                     try {
-                        const client = window.supabase.createClient(supabaseUrl.trim(), supabaseKey.trim());
+                        const client = window.supabase.createClient(FIXED_SUPABASE_URL, FIXED_SUPABASE_KEY.trim());
                         setSupabaseClient(client);
                     } catch (e) {
                         console.error("Erro ao inicializar Supabase:", e);
                     }
                 }
-            }, [supabaseUrl, supabaseKey]);
+            }, []);
 
             const cycleRangeAndWeeks = useMemo(() => {
                 const startDt = new Date(cycleStartDate + 'T00:00:00');
@@ -173,23 +177,10 @@
                         if (data.length > 0 && (!selectedProfIdForAdmin || !data.some(p => p.id === selectedProfIdForAdmin))) {
                             setSelectedProfIdForAdmin(data[0].id);
                         }
-                    } else {
-                        const demoProfs = JSON.parse(localStorage.getItem('demo_profs') || '[]');
-                        const defaultProfs = [{ id: 'demo-prof-1', name: 'Dr. João Neuropsicólogo', email: 'joao@neuro.com' }, ...demoProfs];
-                        setAllProfessionals(defaultProfs);
-                        if (!selectedProfIdForAdmin) setSelectedProfIdForAdmin(defaultProfs[0].id);
-                    }
-                } else {
-                    const demoProfs = JSON.parse(localStorage.getItem('demo_profs') || '[]');
-                    const defaultProfs = [{ id: 'demo-prof-1', name: 'Dr. João Neuropsicólogo', email: 'joao@neuro.com' }, ...demoProfs];
-                    setAllProfessionals(defaultProfs);
-                    if (defaultProfs.length > 0 && !selectedProfIdForAdmin) {
-                        setSelectedProfIdForAdmin(defaultProfs[0].id);
                     }
                 }
             };
 
-            // Admin action to create a user directly
             const handleAdminCreateUser = async (e) => {
                 e.preventDefault();
                 setAdminCreateMsg({ type: '', text: '' });
@@ -222,20 +213,6 @@
                     } catch (err) {
                         setAdminCreateMsg({ type: 'error', text: err.message });
                     }
-                } else {
-                    let profs = JSON.parse(localStorage.getItem('demo_profs') || '[]');
-                    if (profs.some(p => p.email === newAdminUserEmail)) {
-                        setAdminCreateMsg({ type: 'error', text: 'E-mail já cadastrado.' });
-                        return;
-                    }
-                    const newProf = { id: 'prof-' + Date.now(), name: newAdminUserName, email: newAdminUserEmail, password_hash: newAdminUserPassword };
-                    profs.push(newProf);
-                    localStorage.setItem('demo_profs', JSON.stringify(profs));
-                    setAdminCreateMsg({ type: 'success', text: `Profissional ${newAdminUserName} criado com sucesso!` });
-                    setNewAdminUserName('');
-                    setNewAdminUserEmail('');
-                    setNewAdminUserPassword('');
-                    fetchAllProfessionals();
                 }
             };
 
@@ -256,12 +233,6 @@
                     } catch (err) {
                         alert('Erro ao excluir: ' + err.message);
                     }
-                } else {
-                    let profs = JSON.parse(localStorage.getItem('demo_profs') || '[]');
-                    profs = profs.filter(p => p.id !== profId);
-                    localStorage.setItem('demo_profs', JSON.stringify(profs));
-                    alert('Profissional excluído com sucesso!');
-                    fetchAllProfessionals();
                 }
             };
 
@@ -309,24 +280,9 @@
                         }
                     } catch (e) {
                         console.error("Erro ao carregar do Supabase:", e);
-                        loadLocalData(profId);
                     }
-                } else {
-                    loadLocalData(profId);
                 }
                 setLoading(false);
-            };
-
-            const loadLocalData = (profId) => {
-                const stored = localStorage.getItem(`sched_${profId}_${cycleStartDate}_${cycleEndDate}`);
-                if (stored) {
-                    const parsed = JSON.parse(stored);
-                    setScheduleData(parsed.schedule || {});
-                    setDailySettings(parsed.daily || {});
-                } else {
-                    setScheduleData({});
-                    setDailySettings({});
-                }
             };
 
             const saveDataToStorage = async (newSched, newDaily) => {
@@ -362,11 +318,6 @@
                     } catch (e) {
                         console.error("Erro ao salvar no Supabase:", e);
                     }
-                } else {
-                    localStorage.setItem(`sched_${profId}_${cycleStartDate}_${cycleEndDate}`, JSON.stringify({
-                        schedule: newSched,
-                        daily: newDaily
-                    }));
                 }
             };
 
@@ -403,7 +354,7 @@
                     try {
                         const { data, error } = await supabaseClient.auth.signInWithPassword({ email: email.trim(), password });
                         if (error) {
-                            setAuthError('E-mail ou senha incorretos. Verifique suas credenciais.');
+                            setAuthError('E-mail ou senha incorretos.');
                         } else if (data.user) {
                             let { data: profile } = await supabaseClient
                                 .from('profiles')
@@ -427,17 +378,7 @@
                             localStorage.setItem('current_prof', JSON.stringify(prof));
                         }
                     } catch (err) {
-                        setAuthError('Erro na autenticação. Verifique sua conexão com o Supabase.');
-                    }
-                } else {
-                    let profs = JSON.parse(localStorage.getItem('demo_profs') || '[]');
-                    let found = profs.find(p => p.email === email.trim() && p.password_hash === password);
-                    if (found) {
-                        const prof = { ...found, role: 'professional' };
-                        setProfessional(prof);
-                        localStorage.setItem('current_prof', JSON.stringify(prof));
-                    } else {
-                        setAuthError('E-mail ou senha incorretos.');
+                        setAuthError('Erro na autenticação com o banco de dados.');
                     }
                 }
             };
@@ -472,17 +413,6 @@
                     } catch (err) {
                         setAuthError('Erro: ' + err.message);
                     }
-                } else {
-                    let profs = JSON.parse(localStorage.getItem('demo_profs') || '[]');
-                    if (profs.some(p => p.email === email.trim())) {
-                        setAuthError('E-mail já cadastrado.');
-                        return;
-                    }
-                    const newProf = { id: 'prof-' + Date.now(), name: profName, email: email.trim(), password_hash: password, role: 'professional' };
-                    profs.push(newProf);
-                    localStorage.setItem('demo_profs', JSON.stringify(profs));
-                    setAuthSuccess('Cadastro realizado com sucesso! Faça login.');
-                    setAuthMode('login');
                 }
             };
 
@@ -508,8 +438,6 @@
                     } catch (err) {
                         setAuthError('Erro: ' + err.message);
                     }
-                } else {
-                    setAuthSuccess('Simulação: E-mail de redefinição enviado para ' + email);
                 }
             };
 
@@ -568,14 +496,6 @@
                 };
             }, [scheduleData, dailySettings, monthWeeks, cycleStartDate, cycleEndDate, serviceDiscount]);
 
-            const saveSupabaseConfig = (e) => {
-                e.preventDefault();
-                localStorage.setItem('sb_url', supabaseUrl.trim());
-                localStorage.setItem('sb_key', supabaseKey.trim());
-                setShowConfigModal(false);
-                window.location.reload();
-            };
-
             if (!professional) {
                 return (
                     <div className="min-h-screen bg-gradient-to-br from-indigo-900 via-slate-900 to-slate-950 flex items-center justify-center p-4">
@@ -585,8 +505,14 @@
                                     <i className="fa-solid fa-brain"></i>
                                 </div>
                                 <h1 className="text-2xl font-bold text-slate-900">NeuroAgenda Pro</h1>
-                                <p className="text-slate-500 text-xs mt-1">Senhas criptografadas & Recuperação por E-mail</p>
+                                <p className="text-slate-500 text-xs mt-1">Conectado ao Supabase • 100% Online</p>
                             </div>
+
+                            {FIXED_SUPABASE_KEY === "COLE_SUA_CHAVE_ANON_AQUI" && (
+                                <div className="mb-4 p-3 bg-amber-50 border border-amber-200 text-amber-800 rounded-lg text-xs">
+                                    ⚠️ <strong>Atenção Desenvolvedor:</strong> Insira sua chave Anon do Supabase na constante <code>FIXED_SUPABASE_KEY</code> dentro do arquivo <code>index.html</code>.
+                                </div>
+                            )}
 
                             {authError && (
                                 <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-600 rounded-lg text-xs flex items-center gap-2">
@@ -702,49 +628,9 @@
                                     <p className="text-center text-xs text-slate-600 mt-4">
                                         Não tem cadastro? <button type="button" onClick={() => { setAuthMode('register'); setAuthError(''); setAuthSuccess(''); }} className="text-indigo-600 font-semibold hover:underline">Cadastre-se</button>
                                     </p>
-                                    <div className="pt-2 text-center">
-                                        <button type="button" onClick={() => setShowConfigModal(true)} className="text-xs text-slate-400 hover:text-indigo-600">
-                                            <i className="fa-solid fa-database mr-1"></i> Configurar Supabase
-                                        </button>
-                                    </div>
                                 </form>
                             )}
                         </div>
-
-                        {showConfigModal && (
-                            <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-                                <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl">
-                                    <h3 className="text-lg font-bold text-slate-900 mb-2">Configuração do Supabase</h3>
-                                    <p className="text-xs text-slate-500 mb-4">Insira suas credenciais do Supabase para ativar autenticação segura.</p>
-                                    <form onSubmit={saveSupabaseConfig} className="space-y-4">
-                                        <div>
-                                            <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">Supabase URL</label>
-                                            <input 
-                                                type="text" 
-                                                value={supabaseUrl} 
-                                                onChange={e => setSupabaseUrl(e.target.value)} 
-                                                className="w-full px-3 py-2 rounded-lg border text-sm text-slate-800"
-                                                placeholder="https://xxx.supabase.co"
-                                            />
-                                        </div>
-                                        <div>
-                                            <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">Supabase Anon Key</label>
-                                            <input 
-                                                type="password" 
-                                                value={supabaseKey} 
-                                                onChange={e => setSupabaseKey(e.target.value)} 
-                                                className="w-full px-3 py-2 rounded-lg border text-sm text-slate-800"
-                                                placeholder="eyJhbGciOi..."
-                                            />
-                                        </div>
-                                        <div className="flex gap-2 justify-end pt-2">
-                                            <button type="button" onClick={() => setShowConfigModal(false)} className="px-4 py-2 text-sm text-slate-600 hover:bg-slate-100 rounded-lg">Cancelar</button>
-                                            <button type="submit" className="px-4 py-2 text-sm bg-indigo-600 text-white rounded-lg hover:bg-indigo-700">Salvar Conexão</button>
-                                        </div>
-                                    </form>
-                                </div>
-                            </div>
-                        )}
                     </div>
                 );
             }
@@ -792,10 +678,9 @@
                             )}
 
                             <div className="flex items-center gap-3">
-                                <button onClick={() => setShowConfigModal(true)} className="text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 px-3 py-2 rounded-lg border border-slate-700 transition flex items-center gap-1.5">
-                                    <i className="fa-solid fa-database text-indigo-400"></i>
-                                    <span>{supabaseClient ? 'Supabase Conectado' : 'Modo Local'}</span>
-                                </button>
+                                <span className="text-xs bg-emerald-500/20 text-emerald-300 px-3 py-1.5 rounded-lg border border-emerald-500/30 flex items-center gap-1.5 font-medium">
+                                    <i className="fa-solid fa-circle-check"></i> Supabase Conectado
+                                </span>
                                 <button onClick={handleLogout} className="bg-red-500/20 hover:bg-red-500/30 text-red-300 px-3 py-2 rounded-lg text-xs font-medium transition flex items-center gap-1.5">
                                     <i className="fa-solid fa-right-from-bracket"></i> Sair
                                 </button>
@@ -1089,7 +974,7 @@
                                         />
                                     </div>
                                     <div className="flex gap-2 justify-end pt-2">
-                                        <button type="button" onClick={() => setShowCreateUserModal(false)} className="px-4 py-2 text-sm text-slate-600 hover:bg-slate-100 rounded-lg">Fechar</button>
+                                        <button type="button" onClick={() =>setShowCreateUserModal(false)} className="px-4 py-2 text-sm text-slate-600 hover:bg-slate-100 rounded-lg">Fechar</button>
                                         <button type="submit" className="px-4 py-2 text-sm bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 shadow-md">Criar Profissional</button>
                                     </div>
                                 </form>
@@ -1101,7 +986,7 @@
                     {showManageUsersModal && (
                         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
                             <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl">
-                                <div className="flex justify-between items-center mb-4">
+                                <div className="flex justify-management items-center mb-4">
                                     <h3 className="text-lg font-bold text-slate-900">Gerenciar Profissionais</h3>
                                     <button onClick={() => setShowManageUsersModal(false)} className="text-slate-400 hover:text-slate-600"><i className="fa-solid fa-xmark text-lg"></i></button>
                                 </div>
@@ -1111,7 +996,7 @@
                                     {allProfessionals.map(p => (
                                         <div key={p.id} className="p-3 flex items-center justify-between gap-4 hover:bg-slate-50">
                                             <div>
-                                                <p className="p-0 text-sm font-bold text-slate-800">{p.name}</p>
+                                                <p className="text-sm font-bold text-slate-800">{p.name}</p>
                                                 <p className="text-xs text-slate-500">{p.email}</p>
                                             </div>
                                             <button 
@@ -1122,7 +1007,7 @@
                                             </button>
                                         </div>
                                     ))}
-                                    {allProfessionals.length === 0 && (
+                                    {allProfessionals.link && allProfessionals.length === 0 && (
                                         <div className="p-6 text-center text-xs text-slate-400">Nenhum profissional cadastrado.</div>
                                     )}
                                 </div>
@@ -1130,42 +1015,6 @@
                                 <div className="flex justify-end">
                                     <button onClick={() => setShowManageUsersModal(false)} className="px-4 py-2 text-sm bg-slate-800 text-white rounded-lg hover:bg-slate-700">Fechar</button>
                                 </div>
-                            </div>
-                        </div>
-                    )}
-
-                    {/* Supabase Config Modal */}
-                    {showConfigModal && (
-                        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-                            <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl">
-                                <h3 className="text-lg font-bold text-slate-900 mb-2">Configuração do Supabase</h3>
-                                <p className="text-xs text-slate-500 mb-4">Insira suas credenciais do Supabase para ativar autenticação segura.</p>
-                                <form onSubmit={saveSupabaseConfig} className="space-y-4">
-                                    <div>
-                                        <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">Supabase URL</label>
-                                        <input 
-                                            type="text" 
-                                            value={supabaseUrl} 
-                                            onChange={e => setSupabaseUrl(e.target.value)} 
-                                            className="w-full px-3 py-2 rounded-lg border text-sm text-slate-800"
-                                            placeholder="https://xxx.supabase.co"
-                                        />
-                                    </div>
-                                    <div>
-                                        <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">Supabase Anon Key</label>
-                                        <input 
-                                            type="password" 
-                                            value={supabaseKey} 
-                                            onChange={e => setSupabaseKey(e.target.value)} 
-                                            className="w-full px-3 py-2 rounded-lg border text-sm text-slate-800"
-                                            placeholder="eyJhbGciOi..."
-                                        />
-                                    </div>
-                                    <div className="flex gap-2 justify-end pt-2">
-                                        <button type="button" onClick={() => setShowConfigModal(false)} className="px-4 py-2 text-sm text-slate-600 hover:bg-slate-100 rounded-lg">Cancelar</button>
-                                        <button type="submit" className="px-4 py-2 text-sm bg-indigo-600 text-white rounded-lg hover:bg-indigo-700">Salvar Conexão</button>
-                                    </div>
-                                </form>
                             </div>
                         </div>
                     )}
