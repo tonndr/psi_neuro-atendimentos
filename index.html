@@ -55,6 +55,9 @@ function App(){
   const [prices, setPrices] = useState({terapia:35, avaliacao:55});
   const [focusDay, setFocusDay] = useState(null);
   const [discountPct, setDiscountPct] = useState(15.33);
+  const [savedSnap, setSavedSnap] = useState({});
+  const [showHist, setShowHist] = useState(false);
+  const [histList, setHistList] = useState([]);
 
   function sbFetch(input, init){
     init = init || {};
@@ -103,7 +106,7 @@ function App(){
     try{
       const dates = curWeek.days.map(d=>d.dateStr);
       const {data:appts} = await sb.from('appointments').select('*').eq('professional_id',pid).in('date',dates);
-      const ns={}; (appts||[]).forEach(a=>{ if(!ns[a.date]) ns[a.date]={}; ns[a.date][a.time_slot]={patientName:a.patient_name||'',type:a.appointment_type||'terapia',status:a.status||'atendido',value:a.value}; }); setSched(ns);
+      const ns={}; (appts||[]).forEach(a=>{ if(!ns[a.date]) ns[a.date]={}; ns[a.date][a.time_slot]={patientName:a.patient_name||'',type:a.appointment_type||'terapia',status:a.status||'atendido',value:a.value}; }); setSched(ns); setSavedSnap(JSON.parse(JSON.stringify(ns)));
       const {data:sett} = await sb.from('daily_settings').select('*').eq('professional_id',pid).in('date',dates);
       const nd={}; (sett||[]).forEach(s=>{ nd[s.date]={noAttendance:s.no_attendance}; }); setDaily(nd);
       const {data:pset} = await sb.from('professional_settings').select('*').eq('professional_id',pid).single();
@@ -113,11 +116,15 @@ function App(){
   };
 
   const saveAll = async(ns,nd)=>{
-    setSched(ns); setDaily(nd); if(!sb||!activeId) return;
-    for(const date of Object.keys(ns)){ for(const slot of Object.keys(ns[date])){ const it=ns[date][slot]; await sb.from('appointments').upsert({professional_id:activeId,date,time_slot:slot,patient_name:it.patientName,appointment_type:it.type,status:it.status,value:(it.type==='terapia'?prices.terapia:prices.avaliacao)},{onConflict:'professional_id,date,time_slot'}); } }
+    setSched(ns); setDaily(nd); setSavedSnap(JSON.parse(JSON.stringify(ns))); if(!sb||!activeId) return;
+    for(const date of Object.keys(ns)){ for(const slot of Object.keys(ns[date])){ const it=ns[date][slot]; await sb.from('appointments').upsert({professional_id:activeId,date,time_slot:slot,patient_name:it.patientName,appointment_type:it.type,status:it.status,value:((it.value===null||it.value===undefined||it.value==='')?(it.type==='terapia'?prices.terapia:prices.avaliacao):Number(it.value))},{onConflict:'professional_id,date,time_slot'}); } }
     for(const date of Object.keys(nd)){ await sb.from('daily_settings').upsert({professional_id:activeId,date,no_attendance:nd[date].noAttendance},{onConflict:'professional_id,date'}); }
   };
-  const updSlot = (ds,slot,f,v)=>{ const ns=JSON.parse(JSON.stringify(sched)); if(!ns[ds]) ns[ds]={}; if(!ns[ds][slot]) ns[ds][slot]={patientName:'',type:'terapia',status:'atendido'}; ns[ds][slot][f]=v; saveAll(ns,daily); };
+  const updSlot = (ds,slot,f,v)=>{ const ns=JSON.parse(JSON.stringify(sched)); if(!ns[ds]) ns[ds]={}; if(!ns[ds][slot]) ns[ds][slot]={patientName:'',type:'terapia',status:'atendido'}; ns[ds][slot][f]=v; if(f==='patientName'){ setSched(ns); } else { saveAll(ns,daily); } };
+  const confirmName = async(ds,slot)=>{ const cur=((sched[ds]&&sched[ds][slot]&&sched[ds][slot].patientName)||''); const old=((savedSnap[ds]&&savedSnap[ds][slot]&&savedSnap[ds][slot].patientName)||''); if(cur===old) return; if(!old){ saveAll(sched,daily); return; } const ok=confirm('Confirmar alteração do paciente de "'+old+'" para "'+cur+'"?'); if(ok){ try{ await sb.from('appointment_history').insert([{professional_id:activeId,date:ds,time_slot:slot,old_patient_name:old,new_patient_name:cur,changed_by:professional.username}]); }catch(e){ console.error(e); } saveAll(sched,daily); } else { const ns=JSON.parse(JSON.stringify(sched)); ns[ds][slot].patientName=old; setSched(ns); } };
+  const updValLocal = (ds,slot,nv)=>{ const ns=JSON.parse(JSON.stringify(sched)); if(!ns[ds]) ns[ds]={}; if(!ns[ds][slot]) ns[ds][slot]={patientName:'',type:'terapia',status:'atendido'}; ns[ds][slot].value=nv; setSched(ns); };
+  const confirmVal = (ds,slot)=>{ const entry=(sched[ds]&&sched[ds][slot])||null; const sn=(savedSnap[ds]&&savedSnap[ds][slot])||null; const hasOld=!!(sn&&(sn.value!==null&&sn.value!==undefined&&sn.value!=='')); const old=hasOld?Number(sn.value):null; if(!entry&&!hasOld) return; const cur=entry?(Number(entry.value)||0):0; if(old!==null&&cur===old) return; const oldTxt=(old===null)?'o valor da tabela':('R$ '+old.toFixed(2).replace('.',',')); const ok=confirm('Administrador: alterar valor deste atendimento de '+oldTxt+' para R$ '+cur.toFixed(2).replace('.',',')+'?'); if(ok){ saveAll(sched,daily); } else { const ns=JSON.parse(JSON.stringify(sched)); if(!ns[ds]) ns[ds]={}; if(!ns[ds][slot]) ns[ds][slot]={patientName:'',type:'terapia',status:'atendido'}; if(hasOld){ ns[ds][slot].value=sn.value; } else { delete ns[ds][slot].value; } setSched(ns); } };
+  const fetchHist = async()=>{ if(!sb||!activeId) return; const {data}=await sb.from('appointment_history').select('*').eq('professional_id',activeId).order('created_at',{ascending:false}).limit(200); setHistList(data||[]); setShowHist(true); };
   const togDay = (ds,c)=>{ const nd=JSON.parse(JSON.stringify(daily)); if(!nd[ds]) nd[ds]={}; nd[ds].noAttendance=c; saveAll(sched,nd); };
   const slotVal = (it,tp)=>{ const v=(it.value===null||it.value===undefined||it.value==='')?(tp==='terapia'?prices.terapia:prices.avaliacao):Number(it.value); return v||0; };
   const savePrices = async(nt,na)=>{ const np={terapia:nt,avaliacao:na}; setPrices(np); if(!sb||!activeId) return; try{ await sb.from('professional_settings').upsert({professional_id:activeId,terapia_price:nt,avaliacao_price:na},{onConflict:'professional_id'}); }catch(e){ console.error(e); } };
@@ -246,14 +253,14 @@ function App(){
         </div>
       </div>
       <div className="bg-white rounded-2xl border overflow-hidden">
-        <div className="bg-slate-900 text-white px-4 py-3 text-sm font-bold">Agenda — Semana {weekIdx+1} ({curWeek.start} a {curWeek.end})</div>
+        <div className="bg-slate-900 text-white px-4 py-3 text-sm font-bold flex justify-between items-center"><span>Agenda — Semana {weekIdx+1} ({curWeek.start} a {curWeek.end})</span><button onClick={fetchHist} className="text-[11px] bg-slate-800 hover:bg-slate-700 border border-slate-700 px-3 py-1.5 rounded-lg font-semibold"><i className="fa-solid fa-clock-rotate-left mr-1"></i>Histórico de alterações</button></div>
         {loading?<div className="p-8 text-center text-sm text-slate-500">Carregando...</div>:<div className="overflow-auto max-h-[75vh]"><table className="w-full text-sm">
           <thead><tr className="bg-slate-100 text-xs uppercase"><th className="p-2 border-r w-28 sticky left-0 top-0 z-20 bg-slate-100">Horário</th>{enrichedDays.map(function(d){ return (<th key={d.dateStr} className={'p-2 border-r min-w-[220px] sticky top-0 z-10 ' + (focusDay===d.dateStr ? 'bg-emerald-100' : 'bg-slate-100')}><span className={focusDay===d.dateStr ? 'font-extrabold text-emerald-800' : ''}>{d.dayOfWeek} ({d.formatted})</span> {d.outCycle ? (<span className="text-[10px] bg-amber-100 px-1 rounded">Fora</span>) : null}<br/><label className="text-[10px] font-normal normal-case bg-white border rounded px-1 py-0.5"><input type="checkbox" checked={d.isNo} onChange={e=>togDay(d.dateStr,e.target.checked)}/> Não há atendimento</label></th>)})}</tr></thead>
           <tbody>{TIME_SLOTS.map(sl=>{const rest=sl==="12:00 - 13:30"; return (<tr key={sl} className="border-t"><td className="p-2 text-center text-xs font-bold border-r bg-slate-50 sticky left-0 z-[5]">{sl}{rest&&<div className="text-amber-600">Descanso</div>}</td>{enrichedDays.map(function(d){const daySched=sched[d.dateStr]; const sd=(daySched && daySched[sl]) || {patientName:'',type:'terapia',status:'atendido'}; if(d.isNo||rest) return (<td key={d.dateStr} className={'p-2 border-r text-[11px] italic text-slate-400 text-center ' + (focusDay===d.dateStr ? 'bg-emerald-100/70' : 'bg-slate-100')}>{d.isNo?'Dia inativo':'Descanso'}</td>); const cnt=sd.status==='atendido'||sd.status==='faltou_remunerada'; const val=slotVal(sd,sd.type); return (<td key={d.dateStr} className={'p-1.5 border-r align-top ' + (focusDay===d.dateStr ? 'bg-emerald-50' : '')}><div className="border rounded-xl p-2 space-y-1.5 bg-white">
-            <input value={sd.patientName} onChange={e=>updSlot(d.dateStr,sl,'patientName',e.target.value)} onFocus={()=>setFocusDay(d.dateStr)} onBlur={()=>setFocusDay(null)} placeholder="Paciente" className="w-full text-xs border rounded px-2 py-1 bg-slate-50"/>
+            <input value={sd.patientName} onChange={e=>updSlot(d.dateStr,sl,'patientName',e.target.value)} onFocus={()=>setFocusDay(d.dateStr)} onBlur={()=>{setFocusDay(null); confirmName(d.dateStr,sl);}} placeholder="Paciente" className="w-full text-xs border rounded px-2 py-1 bg-slate-50"/>
             <select value={sd.type} onChange={e=>updSlot(d.dateStr,sl,'type',e.target.value)} onFocus={()=>setFocusDay(d.dateStr)} onBlur={()=>setFocusDay(null)} className="w-full text-xs border rounded px-1 py-1 bg-indigo-50 font-semibold"><option value="terapia">Terapia R$ {Number(prices.terapia).toFixed(2).replace('.',',')}</option><option value="avaliacao">Avaliação R$ {Number(prices.avaliacao).toFixed(2).replace('.',',')}</option></select>
             <select value={sd.status} onChange={e=>updSlot(d.dateStr,sl,'status',e.target.value)} onFocus={()=>setFocusDay(d.dateStr)} onBlur={()=>setFocusDay(null)} className="w-full text-xs border rounded px-1 py-1 font-semibold"><option value="atendido">✓ Atendido</option><option value="faltou_remunerada">⚡ Faltou (Remun.)</option><option value="faltou_nao_remunerada">✕ Faltou (Não rem.)</option><option value="inativo">— Sem atend.</option></select>
-            <div className="text-[11px] flex justify-between"><span className="text-slate-400">Valor:</span><b className={cnt?'text-emerald-600':'text-slate-400 line-through'}>R$ {val.toFixed(2).replace('.',',')}</b></div>
+            <div className="text-[11px] flex justify-between items-center"><span className="text-slate-400">Valor:</span>{isAdmin ? (<input type="number" min="0" step="0.01" value={Number(val)||0} onChange={e=>updValLocal(d.dateStr,sl,parseFloat(e.target.value)||0)} onBlur={()=>confirmVal(d.dateStr,sl)} title="Somente administrador pode alterar" className="w-20 text-right font-bold text-emerald-700 border border-emerald-300 rounded px-1"/>) : (<b className={cnt?'text-emerald-600':'text-slate-400 line-through'}>R$ {val.toFixed(2).replace('.',',')}</b>)}</div>
           </div></td>)})}</tr>)})}</tbody>
         </table></div>}
       </div>
@@ -270,6 +277,11 @@ function App(){
       <h3 className="font-bold mb-2">Trocar minha senha</h3>{authError&&<div className="text-xs bg-red-50 text-red-600 p-2 rounded mb-2">{authError}</div>}
       <form onSubmit={doChangeOwn} className="space-y-2"><input type="password" value={curPwd} onChange={e=>setCurPwd(e.target.value)} placeholder="Senha atual" required className="w-full border rounded-lg px-3 py-2 text-sm"/><input type="password" value={newPwd1} onChange={e=>setNewPwd1(e.target.value)} placeholder="Nova senha" required className="w-full border rounded-lg px-3 py-2 text-sm"/><input type="password" value={newPwd2} onChange={e=>setNewPwd2(e.target.value)} placeholder="Confirmar" required className="w-full border rounded-lg px-3 py-2 text-sm"/>
       <div className="flex justify-end gap-2"><button type="button" onClick={()=>setShowChangePass(false)} className="text-sm px-3 py-2">Fechar</button><button className="bg-indigo-600 text-white text-sm px-4 py-2 rounded-lg">Salvar</button></div></form></div></div>}
+    {showHist&&<div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-50"><div className="bg-white rounded-2xl max-w-lg w-full p-5">
+      <div className="flex justify-between items-center mb-2"><h3 className="font-bold">Histórico de alterações de pacientes</h3><button onClick={()=>setShowHist(false)} className="text-slate-400 hover:text-slate-600"><i className="fa-solid fa-xmark text-lg"></i></button></div>
+      <p className="text-xs text-slate-500 mb-3">Registro oculto de quem alterou nomes de pacientes. Visível somente aqui.</p>
+      <div className="max-h-80 overflow-auto border rounded-xl divide-y">{histList.map(h=>(<div key={h.id} className="p-2 text-xs"><p className="font-bold text-slate-800">{h.date.split('-').reverse().join('/')} • {h.time_slot}</p><p className="text-slate-600">"{h.old_patient_name}" → "{h.new_patient_name}"</p><p className="text-slate-400">por {h.changed_by} em {new Date(h.created_at).toLocaleString('pt-BR')}</p></div>))}{histList.length===0&&<div className="p-4 text-center text-xs text-slate-400">Nenhuma alteração registrada.</div>}</div>
+      <div className="text-right mt-3"><button onClick={()=>setShowHist(false)} className="bg-slate-800 text-white text-sm px-4 py-2 rounded-lg">Fechar</button></div></div></div>}
     <footer className="bg-slate-900 text-white text-center text-[11px] py-3">NeuroAgenda Pro • Usuário + senha hash • Supabase</footer>
   </div>);
 }
