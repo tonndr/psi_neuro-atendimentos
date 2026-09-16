@@ -21,7 +21,9 @@ const { useState, useEffect, useMemo } = React;
         // o domínio do app e a Vercel repassa ao Supabase. Evita bloqueios de DNS/rede.
         const FIXED_SUPABASE_URL = window.location.origin;
 const FIXED_SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imh6dHdkeW1tcGZ6dGtqd2NoemZhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODk1NzI5MzcsImV4cCI6MjEwNTE0ODkzN30.dgn59hXNZoDjwljZDO6XBUA3XIVhnaSyfpEtQi4ZTKs";
-const TIME_SLOTS = ["08:00 - 08:40","08:40 - 09:20","09:20 - 10:00","10:00 - 10:40","10:40 - 11:20","11:20 - 12:00","12:00 - 13:30","13:20 - 14:00","14:00 - 14:40","14:40 - 15:20","15:20 - 16:00","16:00 - 16:40","16:40 - 17:20","17:20 - 18:00","18:00 - 18:40","18:40 - 19:20"];
+const TIME_SLOTS_40 = ["08:00 - 08:40","08:40 - 09:20","09:20 - 10:00","10:00 - 10:40","10:40 - 11:20","11:20 - 12:00","12:00 - 13:30","13:20 - 14:00","14:00 - 14:40","14:40 - 15:20","15:20 - 16:00","16:00 - 16:40","16:40 - 17:20","17:20 - 18:00","18:00 - 18:40","18:40 - 19:20"];
+        const TIME_SLOTS_30 = ["07:30 - 08:00","08:00 - 08:30","08:30 - 09:00","09:00 - 09:30","09:30 - 10:00","10:00 - 10:30","10:30 - 11:00","11:00 - 11:30","11:30 - 12:00","12:00 - 12:30","12:30 - 13:00","13:00 - 13:30","13:30 - 14:00","14:00 - 14:30","14:30 - 15:00","15:00 - 15:30","15:30 - 16:00","16:00 - 16:30","16:30 - 17:00","17:00 - 17:30","17:30 - 18:00","18:00 - 18:30","18:30 - 19:00","19:00 - 19:30"];
+        function isRestSlot(tp,sl){ return tp==='40min'&&sl==="12:00 - 13:30"; }
 const DAYS = [{short:'Segunda'},{short:'Terça'},{short:'Quarta'},{short:'Quinta'},{short:'Sexta'}];
 const PRICES = { terapia: 35, avaliacao: 55 };
 const ADMIN = { user: 'admin', pass: 'ToT1267AGzzcso1$' };
@@ -53,6 +55,8 @@ function App(){
   const [discount, setDiscount] = useState(false);
   const [sched, setSched] = useState({}); const [daily, setDaily] = useState({}); const [loading, setLoading] = useState(false);
   const [prices, setPrices] = useState({terapia:35, avaliacao:55});
+  const [agendaType, setAgendaType] = useState('40min');
+  const TIME_SLOTS = agendaType==='30min'?TIME_SLOTS_30:TIME_SLOTS_40;
   const [focusDay, setFocusDay] = useState(null);
   const [discountPct, setDiscountPct] = useState(15.33);
   const [savedSnap, setSavedSnap] = useState({});
@@ -110,7 +114,7 @@ function App(){
       const {data:sett} = await sb.from('daily_settings').select('*').eq('professional_id',pid).in('date',dates);
       const nd={}; (sett||[]).forEach(s=>{ nd[s.date]={noAttendance:s.no_attendance}; }); setDaily(nd);
       const {data:pset} = await sb.from('professional_settings').select('*').eq('professional_id',pid).single();
-      if(pset){ setPrices({terapia:Number(pset.terapia_price)||0, avaliacao:Number(pset.avaliacao_price)||0}); } else { setPrices({terapia:35, avaliacao:55}); }
+      if(pset){ setPrices({terapia:Number(pset.terapia_price)||0, avaliacao:Number(pset.avaliacao_price)||0}); if(pset.agenda_type){ setAgendaType(pset.agenda_type); } } else { setPrices({terapia:35, avaliacao:55}); setAgendaType('40min'); }
     }catch(e){ console.error(e); }
     setLoading(false);
   };
@@ -128,6 +132,7 @@ function App(){
   const togDay = (ds,c)=>{ const nd=JSON.parse(JSON.stringify(daily)); if(!nd[ds]) nd[ds]={}; nd[ds].noAttendance=c; saveAll(sched,nd); };
   const slotVal = (it,tp)=>{ const v=(it.value===null||it.value===undefined||it.value==='')?(tp==='terapia'?prices.terapia:prices.avaliacao):Number(it.value); return v||0; };
   const savePrices = async(nt,na)=>{ const np={terapia:nt,avaliacao:na}; setPrices(np); if(!sb||!activeId) return; try{ await sb.from('professional_settings').upsert({professional_id:activeId,terapia_price:nt,avaliacao_price:na},{onConflict:'professional_id'}); }catch(e){ console.error(e); } };
+  const saveAgendaType = async(tp)=>{ setAgendaType(tp); if(!sb||!activeId) return; try{ await sb.from('professional_settings').upsert({professional_id:activeId,agenda_type:tp},{onConflict:'professional_id'}); }catch(e){ console.error(e); } };
 
   const doLogin = async(e)=>{
     e.preventDefault(); setAuthError('');
@@ -177,10 +182,10 @@ function App(){
 
   const fin = useMemo(()=>{
     let tc=0,ac=0,tt=0,at=0; const s=new Date(cycleStart+'T00:00:00'),en=new Date(cycleEnd+'T23:59:59');
-    weeks.forEach(w=>w.days.forEach(d=>{ if(d.dateObj>=s&&d.dateObj<=en){ const ds=sched[d.dateStr]||{}; if(!(daily[d.dateStr] && daily[d.dateStr].noAttendance)){                                 TIME_SLOTS.forEach(sl=>{ const it=ds[sl]; if(it&&sl!=="12:00 - 13:30"&&(it.status==='atendido'||it.status==='faltou_remunerada')){ if(it.type==='terapia'){tc++; tt+=slotVal(it,'terapia');} else {ac++; at+=slotVal(it,'avaliacao');} } }); } } }));
+    weeks.forEach(w=>w.days.forEach(d=>{ if(d.dateObj>=s&&d.dateObj<=en){ const ds=sched[d.dateStr]||{}; if(!(daily[d.dateStr] && daily[d.dateStr].noAttendance)){                                 TIME_SLOTS.forEach(sl=>{ const it=ds[sl]; if(it&&!isRestSlot(agendaType,sl)&&(it.status==='atendido'||it.status==='faltou_remunerada')){ if(it.type==='terapia'){tc++; tt+=slotVal(it,'terapia');} else {ac++; at+=slotVal(it,'avaliacao');} } }); } } }));
     const sub=tt+at, g=sub-(discount?sub*discountPct/100:0);
     return {tc,tt,ac,at,sub,g,tot:tc+ac};
-  },[sched,daily,weeks,cycleStart,cycleEnd,discount,prices,discountPct]);
+  },[sched,daily,weeks,cycleStart,cycleEnd,discount,prices,discountPct,agendaType]);
 
   if(pendingForce){
     return (<div className="min-h-screen bg-slate-900 flex items-center justify-center p-4"><div className="bg-white rounded-2xl max-w-md w-full p-6">
@@ -231,6 +236,7 @@ function App(){
           <label className="text-xs font-bold bg-indigo-50 border border-indigo-200 px-3 py-2 rounded-xl">Fim: <input type="date" value={cycleEnd} onChange={e=>setCycleEnd(e.target.value)} className="bg-white border rounded ml-1 text-xs px-1"/></label>
           <label className="text-xs font-bold bg-emerald-50 border border-emerald-200 px-3 py-2 rounded-xl">Terapia R$: <input type="number" min="0" step="0.01" value={prices.terapia} onChange={e=>savePrices(parseFloat(e.target.value)||0, prices.avaliacao)} className="bg-white border rounded ml-1 text-xs px-1 w-20"/></label>
           <label className="text-xs font-bold bg-emerald-50 border border-emerald-200 px-3 py-2 rounded-xl">Avaliação R$: <input type="number" min="0" step="0.01" value={prices.avaliacao} onChange={e=>savePrices(prices.terapia, parseFloat(e.target.value)||0)} className="bg-white border rounded ml-1 text-xs px-1 w-20"/></label>
+          <div className="flex items-center gap-1 bg-slate-100 border border-slate-200 px-2 py-1.5 rounded-xl"><span className="text-xs font-bold text-slate-500 mr-1">Agenda:</span><button onClick={()=>saveAgendaType('40min')} className={'px-3 py-1.5 rounded-lg text-xs font-bold ' + (agendaType==='40min' ? 'bg-indigo-600 text-white shadow' : 'text-slate-600')}>40 min</button><button onClick={()=>saveAgendaType('30min')} className={'px-3 py-1.5 rounded-lg text-xs font-bold ' + (agendaType==='30min' ? 'bg-indigo-600 text-white shadow' : 'text-slate-600')}>30 min</button></div>
         </div>
         <div className="flex gap-2 items-center overflow-x-auto"><span className="text-xs font-bold text-slate-500">Semana:</span>{weeks.map((w,i)=><button key={i} onClick={()=>setWeekIdx(i)} className={`px-3 py-1.5 rounded-xl text-xs font-semibold ${weekIdx===i?'bg-indigo-600 text-white':'bg-slate-100'}`}>S{i+1} ({w.start}-{w.end})</button>)}</div>
       </div>
@@ -253,10 +259,10 @@ function App(){
         </div>
       </div>
       <div className="bg-white rounded-2xl border overflow-hidden">
-        <div className="bg-slate-900 text-white px-4 py-3 text-sm font-bold flex justify-between items-center"><span>Agenda — Semana {weekIdx+1} ({curWeek.start} a {curWeek.end})</span><button onClick={fetchHist} className="text-[11px] bg-slate-800 hover:bg-slate-700 border border-slate-700 px-3 py-1.5 rounded-lg font-semibold"><i className="fa-solid fa-clock-rotate-left mr-1"></i>Histórico de alterações</button></div>
+        <div className="bg-slate-900 text-white px-4 py-3 text-sm font-bold flex justify-between items-center"><span>Agenda {agendaType==='30min' ? '30 min' : '40 min'} — Semana {weekIdx+1} ({curWeek.start} a {curWeek.end})</span><button onClick={fetchHist} className="text-[11px] bg-slate-800 hover:bg-slate-700 border border-slate-700 px-3 py-1.5 rounded-lg font-semibold"><i className="fa-solid fa-clock-rotate-left mr-1"></i>Histórico de alterações</button></div>
         {loading?<div className="p-8 text-center text-sm text-slate-500">Carregando...</div>:<div className="overflow-auto max-h-[75vh]"><table className="w-full text-sm">
           <thead><tr className="bg-slate-100 text-xs uppercase"><th className="p-2 border-r w-28 sticky left-0 top-0 z-20 bg-slate-100">Horário</th>{enrichedDays.map(function(d){ return (<th key={d.dateStr} className={'p-2 border-r min-w-[220px] sticky top-0 z-10 ' + (focusDay===d.dateStr ? 'bg-emerald-100' : 'bg-slate-100')}><span className={focusDay===d.dateStr ? 'font-extrabold text-emerald-800' : ''}>{d.dayOfWeek} ({d.formatted})</span> {d.outCycle ? (<span className="text-[10px] bg-amber-100 px-1 rounded">Fora</span>) : null}<br/><label className="text-[10px] font-normal normal-case bg-white border rounded px-1 py-0.5"><input type="checkbox" checked={d.isNo} onChange={e=>togDay(d.dateStr,e.target.checked)}/> Não há atendimento</label></th>)})}</tr></thead>
-          <tbody>{TIME_SLOTS.map(sl=>{const rest=sl==="12:00 - 13:30"; return (<tr key={sl} className="border-t"><td className="p-2 text-center text-xs font-bold border-r bg-slate-50 sticky left-0 z-[5]">{sl}{rest&&<div className="text-amber-600">Descanso</div>}</td>{enrichedDays.map(function(d){const daySched=sched[d.dateStr]; const sd=(daySched && daySched[sl]) || {patientName:'',type:'terapia',status:'atendido'}; if(d.isNo||rest) return (<td key={d.dateStr} className={'p-2 border-r text-[11px] italic text-slate-400 text-center ' + (focusDay===d.dateStr ? 'bg-emerald-100/70' : 'bg-slate-100')}>{d.isNo?'Dia inativo':'Descanso'}</td>); const cnt=sd.status==='atendido'||sd.status==='faltou_remunerada'; const val=slotVal(sd,sd.type); return (<td key={d.dateStr} className={'p-1.5 border-r align-top ' + (focusDay===d.dateStr ? 'bg-emerald-50' : '')}><div className="border rounded-xl p-2 space-y-1.5 bg-white">
+          <tbody>{TIME_SLOTS.map(sl=>{const rest=isRestSlot(agendaType,sl); return (<tr key={sl} className="border-t"><td className="p-2 text-center text-xs font-bold border-r bg-slate-50 sticky left-0 z-[5]">{sl}{rest&&<div className="text-amber-600">Descanso</div>}</td>{enrichedDays.map(function(d){const daySched=sched[d.dateStr]; const sd=(daySched && daySched[sl]) || {patientName:'',type:'terapia',status:'atendido'}; if(d.isNo||rest) return (<td key={d.dateStr} className={'p-2 border-r text-[11px] italic text-slate-400 text-center ' + (focusDay===d.dateStr ? 'bg-emerald-100/70' : 'bg-slate-100')}>{d.isNo?'Dia inativo':'Descanso'}</td>); const cnt=sd.status==='atendido'||sd.status==='faltou_remunerada'; const val=slotVal(sd,sd.type); return (<td key={d.dateStr} className={'p-1.5 border-r align-top ' + (focusDay===d.dateStr ? 'bg-emerald-50' : '')}><div className="border rounded-xl p-2 space-y-1.5 bg-white">
             <input value={sd.patientName} onChange={e=>updSlot(d.dateStr,sl,'patientName',e.target.value)} onFocus={()=>setFocusDay(d.dateStr)} onBlur={()=>{setFocusDay(null); confirmName(d.dateStr,sl);}} placeholder="Paciente" className="w-full text-xs border rounded px-2 py-1 bg-slate-50"/>
             <select value={sd.type} onChange={e=>updSlot(d.dateStr,sl,'type',e.target.value)} onFocus={()=>setFocusDay(d.dateStr)} onBlur={()=>setFocusDay(null)} className="w-full text-xs border rounded px-1 py-1 bg-indigo-50 font-semibold"><option value="terapia">Terapia R$ {Number(prices.terapia).toFixed(2).replace('.',',')}</option><option value="avaliacao">Avaliação R$ {Number(prices.avaliacao).toFixed(2).replace('.',',')}</option></select>
             <select value={sd.status} onChange={e=>updSlot(d.dateStr,sl,'status',e.target.value)} onFocus={()=>setFocusDay(d.dateStr)} onBlur={()=>setFocusDay(null)} className="w-full text-xs border rounded px-1 py-1 font-semibold"><option value="atendido">✓ Atendido</option><option value="faltou_remunerada">⚡ Faltou (Remun.)</option><option value="faltou_nao_remunerada">✕ Faltou (Não rem.)</option><option value="inativo">— Sem atend.</option></select>
