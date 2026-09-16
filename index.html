@@ -62,6 +62,7 @@ function App(){
   const [savedSnap, setSavedSnap] = useState({});
   const [showHist, setShowHist] = useState(false);
   const [histList, setHistList] = useState([]);
+  useEffect(()=>{ if(professional){ const s=localStorage.getItem('cycle_'+professional.id+'_start'); const e=localStorage.getItem('cycle_'+professional.id+'_end'); if(s) setCycleStart(s); if(e) setCycleEnd(e); } },[professional]);
 
   function sbFetch(input, init){
     init = init || {};
@@ -232,8 +233,8 @@ function App(){
     <main className="max-w-7xl mx-auto px-4 py-5 w-full space-y-5">
       <div className="bg-white rounded-2xl p-4 border flex flex-wrap justify-between gap-3">
         <div className="flex gap-3 flex-wrap">
-          <label className="text-xs font-bold bg-indigo-50 border border-indigo-200 px-3 py-2 rounded-xl">Início: <input type="date" value={cycleStart} onChange={e=>setCycleStart(e.target.value)} className="bg-white border rounded ml-1 text-xs px-1"/></label>
-          <label className="text-xs font-bold bg-indigo-50 border border-indigo-200 px-3 py-2 rounded-xl">Fim: <input type="date" value={cycleEnd} onChange={e=>setCycleEnd(e.target.value)} className="bg-white border rounded ml-1 text-xs px-1"/></label>
+          <label className="text-xs font-bold bg-indigo-50 border border-indigo-200 px-3 py-2 rounded-xl">Início: <input type="date" value={cycleStart} onChange={e=>{setCycleStart(e.target.value); if(professional) localStorage.setItem('cycle_'+professional.id+'_start', e.target.value);}} className="bg-white border rounded ml-1 text-xs px-1"/></label>
+          <label className="text-xs font-bold bg-indigo-50 border border-indigo-200 px-3 py-2 rounded-xl">Fim: <input type="date" value={cycleEnd} onChange={e=>{setCycleEnd(e.target.value); if(professional) localStorage.setItem('cycle_'+professional.id+'_end', e.target.value);}} className="bg-white border rounded ml-1 text-xs px-1"/></label>
           <label className="text-xs font-bold bg-emerald-50 border border-emerald-200 px-3 py-2 rounded-xl">Terapia R$: <input type="number" min="0" step="0.01" value={prices.terapia} onChange={e=>savePrices(parseFloat(e.target.value)||0, prices.avaliacao)} className="bg-white border rounded ml-1 text-xs px-1 w-20"/></label>
           <label className="text-xs font-bold bg-emerald-50 border border-emerald-200 px-3 py-2 rounded-xl">Avaliação R$: <input type="number" min="0" step="0.01" value={prices.avaliacao} onChange={e=>savePrices(prices.terapia, parseFloat(e.target.value)||0)} className="bg-white border rounded ml-1 text-xs px-1 w-20"/></label>
           <label className="flex items-center gap-2 bg-slate-100 border border-slate-200 px-3 py-2 rounded-xl text-xs font-bold text-slate-600">Agenda: <select value={agendaType} onChange={e=>saveAgendaType(e.target.value)} className="bg-white border border-slate-300 rounded-lg text-xs font-bold px-2 py-1 focus:outline-none"><option value="40min">40 min</option><option value="30min">30 min</option></select></label>
