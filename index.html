@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>NeuroAgenda Pro - Atendimentos</title>
+<title>NeuroAgenda - Atendimentos</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🧠</text></svg>">
 <script src="https://cdn.tailwindcss.com"></script>
 <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
@@ -202,11 +202,11 @@ function App(){
   if(!professional){
     return (<div className="min-h-screen bg-gradient-to-br from-indigo-900 via-slate-900 to-slate-950 flex items-center justify-center p-4"><div className="bg-white rounded-2xl w-full max-w-md p-8">
       <div className="text-center mb-6"><div className="inline-flex w-14 h-14 bg-indigo-600 text-white rounded-2xl items-center justify-center text-xl"><i className="fa-solid fa-brain"></i></div>
-      <h1 className="text-xl font-bold mt-2">NeuroAgenda Pro</h1><p className="text-xs text-slate-500">Login por usuário • 100% Supabase</p></div>
+      <h1 className="text-xl font-bold mt-2">NeuroAgenda</h1><p className="text-xs text-slate-500">Login por usuário • 100% Supabase</p></div>
       {FIXED_SUPABASE_KEY==="COLE_SUA_CHAVE_ANON_AQUI"&&<div className="mb-3 p-2 bg-amber-50 border border-amber-200 text-amber-800 text-xs rounded">Configure FIXED_SUPABASE_KEY no index.html com a chave anon (Legacy).</div>}
       {authError&&<div className="mb-3 p-2 bg-red-50 border border-red-200 text-red-600 text-xs rounded">{authError}</div>}
       <form onSubmit={doLogin} className="space-y-3">
-        <div><label className="text-xs font-bold">USUÁRIO</label><input value={loginUser} onChange={e=>setLoginUser(e.target.value)} required placeholder="ex: mayara.silva" className="w-full border rounded-xl px-4 py-2.5 text-sm"/></div>
+        <div><label className="text-xs font-bold">USUÁRIO</label><input value={loginUser} onChange={e=>setLoginUser(e.target.value)} required placeholder="ex: joao.silva" className="w-full border rounded-xl px-4 py-2.5 text-sm"/></div>
         <div><label className="text-xs font-bold">SENHA</label><input type="password" value={loginPass} onChange={e=>setLoginPass(e.target.value)} required placeholder="••••••" className="w-full border rounded-xl px-4 py-2.5 text-sm"/></div>
         <button className="w-full bg-indigo-600 text-white py-3 rounded-xl font-semibold text-sm">Entrar</button>
       </form>
@@ -217,7 +217,7 @@ function App(){
   return (<div className="min-h-screen bg-slate-100 flex flex-col">
     <header className="bg-slate-900 text-white"><div className="max-w-7xl mx-auto px-4 py-3 flex justify-between items-center flex-wrap gap-3">
       <div className="flex items-center gap-2"><div className="w-9 h-9 bg-indigo-600 rounded-xl flex items-center justify-center"><i className="fa-solid fa-brain"></i></div>
-      <div><h1 className="font-bold">NeuroAgenda Pro</h1><p className="text-[11px] text-indigo-300">{isAdmin?<span className="text-amber-400 font-semibold">{professional.name} (Acesso Total)</span>:<span><b className="text-white">{professional.name}</b> <span className="text-indigo-300">@{professional.username}</span></span>}</p></div></div>
+      <div><h1 className="font-bold">NeuroAgenda</h1><p className="text-[11px] text-indigo-300">{isAdmin?<span className="text-amber-400 font-semibold">{professional.name} (Acesso Total)</span>:<span><b className="text-white">{professional.name}</b> <span className="text-indigo-300">@{professional.username}</span></span>}</p></div></div>
       {isAdmin&&<div className="flex items-center gap-2 flex-wrap">
         <select value={selProfId||''} onChange={e=>setSelProfId(e.target.value)} className="bg-slate-800 text-xs px-2 py-1.5 rounded-lg border border-slate-700">{allProfs.map(p=><option key={p.id} value={p.id}>{p.name} ({p.username})</option>)}</select>
         <button onClick={()=>setShowCreate(true)} className="bg-indigo-600 text-xs px-3 py-2 rounded-xl font-semibold"><i className="fa-solid fa-user-plus mr-1"></i>Novo Usuário</button>
@@ -236,7 +236,7 @@ function App(){
           <label className="text-xs font-bold bg-indigo-50 border border-indigo-200 px-3 py-2 rounded-xl">Fim: <input type="date" value={cycleEnd} onChange={e=>setCycleEnd(e.target.value)} className="bg-white border rounded ml-1 text-xs px-1"/></label>
           <label className="text-xs font-bold bg-emerald-50 border border-emerald-200 px-3 py-2 rounded-xl">Terapia R$: <input type="number" min="0" step="0.01" value={prices.terapia} onChange={e=>savePrices(parseFloat(e.target.value)||0, prices.avaliacao)} className="bg-white border rounded ml-1 text-xs px-1 w-20"/></label>
           <label className="text-xs font-bold bg-emerald-50 border border-emerald-200 px-3 py-2 rounded-xl">Avaliação R$: <input type="number" min="0" step="0.01" value={prices.avaliacao} onChange={e=>savePrices(prices.terapia, parseFloat(e.target.value)||0)} className="bg-white border rounded ml-1 text-xs px-1 w-20"/></label>
-          <div className="flex items-center gap-1 bg-slate-100 border border-slate-200 px-2 py-1.5 rounded-xl"><span className="text-xs font-bold text-slate-500 mr-1">Agenda:</span><button onClick={()=>saveAgendaType('40min')} className={'px-3 py-1.5 rounded-lg text-xs font-bold ' + (agendaType==='40min' ? 'bg-indigo-600 text-white shadow' : 'text-slate-600')}>40 min</button><button onClick={()=>saveAgendaType('30min')} className={'px-3 py-1.5 rounded-lg text-xs font-bold ' + (agendaType==='30min' ? 'bg-indigo-600 text-white shadow' : 'text-slate-600')}>30 min</button></div>
+          <label className="flex items-center gap-2 bg-slate-100 border border-slate-200 px-3 py-2 rounded-xl text-xs font-bold text-slate-600">Agenda: <select value={agendaType} onChange={e=>saveAgendaType(e.target.value)} className="bg-white border border-slate-300 rounded-lg text-xs font-bold px-2 py-1 focus:outline-none"><option value="40min">40 min</option><option value="30min">30 min</option></select></label>
         </div>
         <div className="flex gap-2 items-center overflow-x-auto"><span className="text-xs font-bold text-slate-500">Semana:</span>{weeks.map((w,i)=><button key={i} onClick={()=>setWeekIdx(i)} className={`px-3 py-1.5 rounded-xl text-xs font-semibold ${weekIdx===i?'bg-indigo-600 text-white':'bg-slate-100'}`}>S{i+1} ({w.start}-{w.end})</button>)}</div>
       </div>
@@ -274,7 +274,7 @@ function App(){
     {showCreate&&<div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-50"><div className="bg-white rounded-2xl max-w-md w-full p-5">
       <h3 className="font-bold">Novo usuário (profissional)</h3><p className="text-xs text-slate-500 mb-3">Cria usuário + senha temporária. Ele troca no 1º acesso.</p>
       {createMsg.text&&<div className={`text-xs p-2 rounded mb-2 ${createMsg.type==='error'?'bg-red-50 text-red-600':'bg-emerald-50 text-emerald-700'}`}>{createMsg.text}</div>}
-      <form onSubmit={doCreate} className="space-y-2"><input value={nName} onChange={e=>setNName(e.target.value)} placeholder="Nome" required className="w-full border rounded-lg px-3 py-2 text-sm"/><input value={nUser} onChange={e=>setNUser(e.target.value)} placeholder="usuário ex: mayara.silva" required className="w-full border rounded-lg px-3 py-2 text-sm"/><input type="password" value={nPass} onChange={e=>setNPass(e.target.value)} placeholder="Senha temporária" required className="w-full border rounded-lg px-3 py-2 text-sm"/>
+      <form onSubmit={doCreate} className="space-y-2"><input value={nName} onChange={e=>setNName(e.target.value)} placeholder="Nome" required className="w-full border rounded-lg px-3 py-2 text-sm"/><input value={nUser} onChange={e=>setNUser(e.target.value)} placeholder="usuário ex: joao.silva" required className="w-full border rounded-lg px-3 py-2 text-sm"/><input type="password" value={nPass} onChange={e=>setNPass(e.target.value)} placeholder="Senha temporária" required className="w-full border rounded-lg px-3 py-2 text-sm"/>
       <div className="flex justify-end gap-2"><button type="button" onClick={()=>setShowCreate(false)} className="text-sm px-3 py-2">Fechar</button><button className="bg-indigo-600 text-white text-sm px-4 py-2 rounded-lg">Criar</button></div></form></div></div>}
     {showManage&&<div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-50"><div className="bg-white rounded-2xl max-w-lg w-full p-5">
       <h3 className="font-bold mb-2">Gerenciar usuários</h3><div className="max-h-80 overflow-auto border rounded-xl divide-y">{allProfs.map(p=>(<div key={p.id} className="p-2 flex justify-between items-center"><div><p className="text-sm font-bold">{p.name}</p><p className="text-xs text-slate-500">{p.username}{p.must_change_password?' • troca pendente':''}</p></div><div className="flex gap-1"><button onClick={()=>doReset(p.id,p.name)} className="text-xs bg-amber-50 border border-amber-200 px-2 py-1 rounded">Resetar</button><button onClick={()=>doDelete(p.id,p.name)} className="text-xs bg-red-50 border border-red-200 text-red-600 px-2 py-1 rounded">Excluir</button></div></div>))}</div>
@@ -288,7 +288,7 @@ function App(){
       <p className="text-xs text-slate-500 mb-3">Registro oculto de quem alterou nomes de pacientes. Visível somente aqui.</p>
       <div className="max-h-80 overflow-auto border rounded-xl divide-y">{histList.map(h=>(<div key={h.id} className="p-2 text-xs"><p className="font-bold text-slate-800">{h.date.split('-').reverse().join('/')} • {h.time_slot}</p><p className="text-slate-600">"{h.old_patient_name}" → "{h.new_patient_name}"</p><p className="text-slate-400">por {h.changed_by} em {new Date(h.created_at).toLocaleString('pt-BR')}</p></div>))}{histList.length===0&&<div className="p-4 text-center text-xs text-slate-400">Nenhuma alteração registrada.</div>}</div>
       <div className="text-right mt-3"><button onClick={()=>setShowHist(false)} className="bg-slate-800 text-white text-sm px-4 py-2 rounded-lg">Fechar</button></div></div></div>}
-    <footer className="bg-slate-900 text-white text-center text-[11px] py-3">NeuroAgenda Pro • Usuário + senha hash • Supabase</footer>
+    <footer className="bg-slate-900 text-white text-center text-[11px] py-3">NeuroAgenda • Usuário + senha hash • Supabase</footer>
   </div>);
 }
 ReactDOM.createRoot(document.getElementById('root')).render(<App />);
