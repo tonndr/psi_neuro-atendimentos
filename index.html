@@ -182,7 +182,7 @@ function App(){
 
   const fin = useMemo(()=>{
     let tc=0,ac=0,tt=0,at=0; const s=new Date(cycleStart+'T00:00:00'),en=new Date(cycleEnd+'T23:59:59');
-    weeks.forEach(w=>w.days.forEach(d=>{ if(d.dateObj>=s&&d.dateObj<=en){ const ds=sched[d.dateStr]||{}; if(!(daily[d.dateStr] && daily[d.dateStr].noAttendance)){                                 TIME_SLOTS.forEach(sl=>{ const it=ds[sl]; if(it&&!isRestSlot(agendaType,sl)&&(it.status==='atendido'||it.status==='faltou_remunerada')){ if(it.type==='terapia'){tc++; tt+=slotVal(it,'terapia');} else {ac++; at+=slotVal(it,'avaliacao');} } }); } } }));
+    weeks.forEach(w=>w.days.forEach(d=>{ if(d.dateObj>=s&&d.dateObj<=en){ const ds=sched[d.dateStr]||{}; if(!(daily[d.dateStr] && daily[d.dateStr].noAttendance)){                                 TIME_SLOTS.forEach(sl=>{ const it=ds[sl]; if(it&&!isRestSlot(agendaType,sl)&&(it.status==='atendido'||it.status==='faltou_remunerada')&&(it.patientName&&it.patientName.trim()!=='')){ if(it.type==='terapia'){tc++; tt+=slotVal(it,'terapia');} else {ac++; at+=slotVal(it,'avaliacao');} } }); } } }));
     const sub=tt+at, g=sub-(discount?sub*discountPct/100:0);
     return {tc,tt,ac,at,sub,g,tot:tc+ac};
   },[sched,daily,weeks,cycleStart,cycleEnd,discount,prices,discountPct,agendaType]);
