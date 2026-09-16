@@ -26,7 +26,7 @@ const TIME_SLOTS_40 = ["08:00 - 08:40","08:40 - 09:20","09:20 - 10:00","10:00 - 
         function isRestSlot(tp,sl){ return tp==='40min'&&sl==="12:00 - 13:30"; }
 const DAYS = [{short:'Segunda'},{short:'Terça'},{short:'Quarta'},{short:'Quinta'},{short:'Sexta'}];
 const PRICES = { terapia: 35, avaliacao: 55 };
-const ADMIN = { user: 'admin', pass: 'ToT1267AGzzcso1$' };
+
 
 async function hashPass(pwd){
   const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode('neuro$$'+pwd));
@@ -136,7 +136,7 @@ function App(){
 
   const doLogin = async(e)=>{
     e.preventDefault(); setAuthError('');
-    if(loginUser.trim()===ADMIN.user&&loginPass===ADMIN.pass){ const a={id:'admin-master',name:'Administrador',username:'admin',role:'admin'}; setProfessional(a); localStorage.setItem('current_prof',JSON.stringify(a)); return; }
+
     if(!sb){ setAuthError('Banco não conectado. Configure a chave Anon no código.'); return; }
     let data = null;
     try{
