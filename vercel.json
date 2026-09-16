@@ -1,12 +1,7 @@
 {
-  "rewrites": [
-    {
-      "source": "/rest/:path*",
-      "destination": "https://vkehcheqkfnudjrvoot.supabase.co/rest/:path*"
-    },
-    {
-      "source": "/auth/:path*",
-      "destination": "https://vkehcheqkfnudjrvoot.supabase.co/auth/:path*"
+  "functions": {
+    "api/sb.js": {
+      "maxDuration": 15
     }
-  ]
+  }
 }

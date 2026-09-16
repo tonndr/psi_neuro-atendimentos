@@ -52,9 +52,17 @@ function App(){
   const [discount, setDiscount] = useState(false);
   const [sched, setSched] = useState({}); const [daily, setDaily] = useState({}); const [loading, setLoading] = useState(false);
 
+  function sbFetch(input, init){
+    init = init || {};
+    var raw = (typeof input === 'string') ? input : input.url;
+    var u = new URL(raw, window.location.origin);
+    var path = u.pathname.replace(/^\/api\/sb/, '') + u.search;
+    return fetch(window.location.origin + '/api/sb?target=' + encodeURIComponent(path), init);
+  }
+
   useEffect(()=>{
     if(FIXED_SUPABASE_KEY && FIXED_SUPABASE_KEY!=="COLE_SUA_CHAVE_ANON_AQUI"){
-      try{ setSb(window.supabase.createClient(FIXED_SUPABASE_URL, FIXED_SUPABASE_KEY.trim())); }catch(e){ console.error(e); }
+      try{ setSb(window.supabase.createClient(window.location.origin + '/api/sb', FIXED_SUPABASE_KEY.trim(), { global: { fetch: sbFetch } })); }catch(e){ console.error(e); }
     }
   },[]);
 
