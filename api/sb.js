@@ -35,6 +35,13 @@ module.exports = async function handler(req, res) {
   } catch (e) {
     res.statusCode = 502;
     res.setHeader('content-type', 'application/json');
-    res.end(JSON.stringify({ error: 'proxy_error', message: String((e && e.message) || e) }));
+    const cause = e && e.cause;
+    res.end(JSON.stringify({
+      error: 'proxy_error',
+      message: String((e && e.message) || e),
+      causeCode: (cause && cause.code) || '',
+      causeMsg: String((cause && (cause.message || cause)) || ''),
+      targetHost: 'vkehcheqkfnudjrvoot.supabase.co'
+    }));
   }
 };
