@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>NeuroAgenda Pro - Atendimentos</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🧠</text></svg>">
 <script src="https://cdn.tailwindcss.com"></script>
 <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
 <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
@@ -51,6 +52,9 @@ function App(){
   const [weekIdx, setWeekIdx] = useState(0);
   const [discount, setDiscount] = useState(false);
   const [sched, setSched] = useState({}); const [daily, setDaily] = useState({}); const [loading, setLoading] = useState(false);
+  const [prices, setPrices] = useState({terapia:35, avaliacao:55});
+  const [focusDay, setFocusDay] = useState(null);
+  const [discountPct, setDiscountPct] = useState(15.33);
 
   function sbFetch(input, init){
     init = init || {};
@@ -102,6 +106,8 @@ function App(){
       const ns={}; (appts||[]).forEach(a=>{ if(!ns[a.date]) ns[a.date]={}; ns[a.date][a.time_slot]={patientName:a.patient_name||'',type:a.appointment_type||'terapia',status:a.status||'atendido'}; }); setSched(ns);
       const {data:sett} = await sb.from('daily_settings').select('*').eq('professional_id',pid).in('date',dates);
       const nd={}; (sett||[]).forEach(s=>{ nd[s.date]={noAttendance:s.no_attendance}; }); setDaily(nd);
+      const {data:pset} = await sb.from('professional_settings').select('*').eq('professional_id',pid).single();
+      if(pset){ setPrices({terapia:Number(pset.terapia_price)||0, avaliacao:Number(pset.avaliacao_price)||0}); } else { setPrices({terapia:35, avaliacao:55}); }
     }catch(e){ console.error(e); }
     setLoading(false);
   };
@@ -113,6 +119,7 @@ function App(){
   };
   const updSlot = (ds,slot,f,v)=>{ const ns=JSON.parse(JSON.stringify(sched)); if(!ns[ds]) ns[ds]={}; if(!ns[ds][slot]) ns[ds][slot]={patientName:'',type:'terapia',status:'atendido'}; ns[ds][slot][f]=v; saveAll(ns,daily); };
   const togDay = (ds,c)=>{ const nd=JSON.parse(JSON.stringify(daily)); if(!nd[ds]) nd[ds]={}; nd[ds].noAttendance=c; saveAll(sched,nd); };
+  const savePrices = async(nt,na)=>{ const np={terapia:nt,avaliacao:na}; setPrices(np); if(!sb||!activeId) return; try{ await sb.from('professional_settings').upsert({professional_id:activeId,terapia_price:nt,avaliacao_price:na},{onConflict:'professional_id'}); }catch(e){ console.error(e); } };
 
   const doLogin = async(e)=>{
     e.preventDefault(); setAuthError('');
@@ -163,9 +170,9 @@ function App(){
   const fin = useMemo(()=>{
     let tc=0,ac=0; const s=new Date(cycleStart+'T00:00:00'),en=new Date(cycleEnd+'T23:59:59');
     weeks.forEach(w=>w.days.forEach(d=>{ if(d.dateObj>=s&&d.dateObj<=en){ const ds=sched[d.dateStr]||{}; if(!(daily[d.dateStr] && daily[d.dateStr].noAttendance)){ TIME_SLOTS.forEach(sl=>{ const it=ds[sl]; if(it&&sl!=="12:00 - 13:30"&&(it.status==='atendido'||it.status==='faltou_remunerada')){ if(it.type==='terapia')tc++; else ac++; } }); } } }));
-    const tt=tc*35, at=ac*55, sub=tt+at, g=sub-(discount?sub*0.1533:0);
+    const tt=tc*prices.terapia, at=ac*prices.avaliacao, sub=tt+at, g=sub-(discount?sub*discountPct/100:0);
     return {tc,tt,ac,at,sub,g,tot:tc+ac};
-  },[sched,daily,weeks,cycleStart,cycleEnd,discount]);
+  },[sched,daily,weeks,cycleStart,cycleEnd,discount,prices,discountPct]);
 
   if(pendingForce){
     return (<div className="min-h-screen bg-slate-900 flex items-center justify-center p-4"><div className="bg-white rounded-2xl max-w-md w-full p-6">
@@ -197,7 +204,7 @@ function App(){
   return (<div className="min-h-screen bg-slate-100 flex flex-col">
     <header className="bg-slate-900 text-white"><div className="max-w-7xl mx-auto px-4 py-3 flex justify-between items-center flex-wrap gap-3">
       <div className="flex items-center gap-2"><div className="w-9 h-9 bg-indigo-600 rounded-xl flex items-center justify-center"><i className="fa-solid fa-brain"></i></div>
-      <div><h1 className="font-bold">NeuroAgenda Pro</h1><p className="text-[11px] text-indigo-300">{isAdmin?<span className="text-amber-400 font-semibold">Administrador</span>:<span>Usuário: <b className="text-white">{professional.username}</b> ({professional.name})</span>}</p></div></div>
+      <div><h1 className="font-bold">NeuroAgenda Pro</h1><p className="text-[11px] text-indigo-300">{isAdmin?<span className="text-amber-400 font-semibold">{professional.name} (Acesso Total)</span>:<span><b className="text-white">{professional.name}</b> <span className="text-indigo-300">@{professional.username}</span></span>}</p></div></div>
       {isAdmin&&<div className="flex items-center gap-2 flex-wrap">
         <select value={selProfId||''} onChange={e=>setSelProfId(e.target.value)} className="bg-slate-800 text-xs px-2 py-1.5 rounded-lg border border-slate-700">{allProfs.map(p=><option key={p.id} value={p.id}>{p.name} ({p.username})</option>)}</select>
         <button onClick={()=>setShowCreate(true)} className="bg-indigo-600 text-xs px-3 py-2 rounded-xl font-semibold"><i className="fa-solid fa-user-plus mr-1"></i>Novo Usuário</button>
@@ -214,6 +221,8 @@ function App(){
         <div className="flex gap-3 flex-wrap">
           <label className="text-xs font-bold bg-indigo-50 border border-indigo-200 px-3 py-2 rounded-xl">Início: <input type="date" value={cycleStart} onChange={e=>setCycleStart(e.target.value)} className="bg-white border rounded ml-1 text-xs px-1"/></label>
           <label className="text-xs font-bold bg-indigo-50 border border-indigo-200 px-3 py-2 rounded-xl">Fim: <input type="date" value={cycleEnd} onChange={e=>setCycleEnd(e.target.value)} className="bg-white border rounded ml-1 text-xs px-1"/></label>
+          <label className="text-xs font-bold bg-emerald-50 border border-emerald-200 px-3 py-2 rounded-xl">Terapia R$: <input type="number" min="0" step="0.01" value={prices.terapia} onChange={e=>savePrices(parseFloat(e.target.value)||0, prices.avaliacao)} className="bg-white border rounded ml-1 text-xs px-1 w-20"/></label>
+          <label className="text-xs font-bold bg-emerald-50 border border-emerald-200 px-3 py-2 rounded-xl">Avaliação R$: <input type="number" min="0" step="0.01" value={prices.avaliacao} onChange={e=>savePrices(prices.terapia, parseFloat(e.target.value)||0)} className="bg-white border rounded ml-1 text-xs px-1 w-20"/></label>
         </div>
         <div className="flex gap-2 items-center overflow-x-auto"><span className="text-xs font-bold text-slate-500">Semana:</span>{weeks.map((w,i)=><button key={i} onClick={()=>setWeekIdx(i)} className={`px-3 py-1.5 rounded-xl text-xs font-semibold ${weekIdx===i?'bg-indigo-600 text-white':'bg-slate-100'}`}>S{i+1} ({w.start}-{w.end})</button>)}</div>
       </div>
@@ -222,22 +231,27 @@ function App(){
           <div><span className="text-[11px] bg-indigo-500/20 border border-indigo-500/30 px-2 py-1 rounded-full">CICLO {cycleStart.split('-').reverse().join('/')} ATÉ {cycleEnd.split('-').reverse().join('/')}</span>
           <h2 className="text-xl font-extrabold mt-1">Total a Receber</h2></div>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <div className="bg-white/5 border border-white/10 rounded-xl p-3 text-center"><p className="text-[11px] text-slate-400">Terapias R$35</p><p className="font-bold text-emerald-400">{fin.tc}</p><p className="text-xs">R$ {fin.tt.toFixed(2).replace('.',',')}</p></div>
-            <div className="bg-white/5 border border-white/10 rounded-xl p-3 text-center"><p className="text-[11px] text-slate-400">Avaliações R$55</p><p className="font-bold text-indigo-300">{fin.ac}</p><p className="text-xs">R$ {fin.at.toFixed(2).replace('.',',')}</p></div>
+            <div className="bg-white/5 border border-white/10 rounded-xl p-3 text-center"><p className="text-[11px] text-slate-400">Terapias R$ {Number(prices.terapia).toFixed(2).replace('.',',')}</p><p className="font-bold text-emerald-400">{fin.tc}</p><p className="text-xs">R$ {fin.tt.toFixed(2).replace('.',',')}</p></div>
+            <div className="bg-white/5 border border-white/10 rounded-xl p-3 text-center"><p className="text-[11px] text-slate-400">Avaliações R$ {Number(prices.avaliacao).toFixed(2).replace('.',',')}</p><p className="font-bold text-indigo-300">{fin.ac}</p><p className="text-xs">R$ {fin.at.toFixed(2).replace('.',',')}</p></div>
             <div className="bg-white/5 border border-white/10 rounded-xl p-3 text-center"><p className="text-[11px] text-slate-400">Atendimentos</p><p className="font-bold text-xl">{fin.tot}</p></div>
             <div className="bg-indigo-600/30 border border-indigo-500/50 rounded-xl p-3 text-center"><p className="text-[11px]">TOTAL</p><p className="font-extrabold text-emerald-300">R$ {fin.g.toFixed(2).replace('.',',')}</p></div>
           </div>
         </div>
-        <label className="flex items-center gap-2 mt-4 pt-3 border-t border-white/10 text-sm cursor-pointer"><input type="checkbox" checked={discount} onChange={e=>setDiscount(e.target.checked)} className="w-4 h-4"/>Desconto de Serviço (15,33%) <span className="text-xs text-slate-400 ml-auto">Subtotal: R$ {fin.sub.toFixed(2).replace('.',',')}</span></label>
+        <div className="mt-4 pt-3 border-t border-white/10 flex items-center gap-2 flex-wrap text-sm">
+          <label className="flex items-center gap-2 cursor-pointer"><input type="checkbox" checked={discount} onChange={e=>setDiscount(e.target.checked)} className="w-4 h-4"/><span className="font-bold">Desconto de Serviço</span></label>
+          <input type="number" min="0" max="100" step="0.01" value={discountPct} onChange={e=>setDiscountPct(parseFloat(e.target.value)||0)} className="w-20 px-2 py-1 rounded-lg bg-white/10 border border-white/20 text-white font-bold"/>
+          <span className="font-bold">%</span>
+          <span className="text-xs text-slate-400 ml-auto">Subtotal: R$ {fin.sub.toFixed(2).replace('.',',')}</span>
+        </div>
       </div>
       <div className="bg-white rounded-2xl border overflow-hidden">
         <div className="bg-slate-900 text-white px-4 py-3 text-sm font-bold">Agenda — Semana {weekIdx+1} ({curWeek.start} a {curWeek.end})</div>
-        {loading?<div className="p-8 text-center text-sm text-slate-500">Carregando...</div>:<div className="overflow-x-auto"><table className="w-full text-sm">
-          <thead><tr className="bg-slate-100 text-xs uppercase"><th className="p-2 border-r w-28">Horário</th>{enrichedDays.map(function(d){ return (<th key={d.dateStr} className="p-2 border-r min-w-[220px]">{d.dayOfWeek} ({d.formatted}) {d.outCycle ? (<span className="text-[10px] bg-amber-100 px-1 rounded">Fora</span>) : null}<br/><label className="text-[10px] font-normal normal-case bg-white border rounded px-1 py-0.5"><input type="checkbox" checked={d.isNo} onChange={e=>togDay(d.dateStr,e.target.checked)}/> Não há atendimento</label></th>)})}</tr></thead>
-          <tbody>{TIME_SLOTS.map(sl=>{const rest=sl==="12:00 - 13:30"; return (<tr key={sl} className="border-t"><td className="p-2 text-center text-xs font-bold border-r bg-slate-50">{sl}{rest&&<div className="text-amber-600">Descanso</div>}</td>{enrichedDays.map(function(d){const daySched=sched[d.dateStr]; const sd=(daySched && daySched[sl]) || {patientName:'',type:'terapia',status:'atendido'}; if(d.isNo||rest) return (<td key={d.dateStr} className="p-2 border-r bg-slate-100 text-[11px] italic text-slate-400 text-center">{d.isNo?'Dia inativo':'Descanso'}</td>); const cnt=sd.status==='atendido'||sd.status==='faltou_remunerada'; const val=sd.type==='terapia'?35:55; return (<td key={d.dateStr} className="p-1.5 border-r align-top"><div className="border rounded-xl p-2 space-y-1.5 bg-white">
-            <input value={sd.patientName} onChange={e=>updSlot(d.dateStr,sl,'patientName',e.target.value)} placeholder="Paciente" className="w-full text-xs border rounded px-2 py-1 bg-slate-50"/>
-            <select value={sd.type} onChange={e=>updSlot(d.dateStr,sl,'type',e.target.value)} className="w-full text-xs border rounded px-1 py-1 bg-indigo-50 font-semibold"><option value="terapia">Terapia R$35</option><option value="avaliacao">Avaliação R$55</option></select>
-            <select value={sd.status} onChange={e=>updSlot(d.dateStr,sl,'status',e.target.value)} className="w-full text-xs border rounded px-1 py-1 font-semibold"><option value="atendido">✓ Atendido</option><option value="faltou_remunerada">⚡ Faltou (Remun.)</option><option value="faltou_nao_remunerada">✕ Faltou (Não rem.)</option><option value="inativo">— Sem atend.</option></select>
+        {loading?<div className="p-8 text-center text-sm text-slate-500">Carregando...</div>:<div className="overflow-auto max-h-[75vh]"><table className="w-full text-sm">
+          <thead><tr className="bg-slate-100 text-xs uppercase"><th className="p-2 border-r w-28 sticky left-0 top-0 z-20 bg-slate-100">Horário</th>{enrichedDays.map(function(d){ return (<th key={d.dateStr} className={'p-2 border-r min-w-[220px] sticky top-0 z-10 ' + (focusDay===d.dateStr ? 'bg-emerald-100' : 'bg-slate-100')}><span className={focusDay===d.dateStr ? 'font-extrabold text-emerald-800' : ''}>{d.dayOfWeek} ({d.formatted})</span> {d.outCycle ? (<span className="text-[10px] bg-amber-100 px-1 rounded">Fora</span>) : null}<br/><label className="text-[10px] font-normal normal-case bg-white border rounded px-1 py-0.5"><input type="checkbox" checked={d.isNo} onChange={e=>togDay(d.dateStr,e.target.checked)}/> Não há atendimento</label></th>)})}</tr></thead>
+          <tbody>{TIME_SLOTS.map(sl=>{const rest=sl==="12:00 - 13:30"; return (<tr key={sl} className="border-t"><td className="p-2 text-center text-xs font-bold border-r bg-slate-50 sticky left-0 z-[5]">{sl}{rest&&<div className="text-amber-600">Descanso</div>}</td>{enrichedDays.map(function(d){const daySched=sched[d.dateStr]; const sd=(daySched && daySched[sl]) || {patientName:'',type:'terapia',status:'atendido'}; if(d.isNo||rest) return (<td key={d.dateStr} className={'p-2 border-r text-[11px] italic text-slate-400 text-center ' + (focusDay===d.dateStr ? 'bg-emerald-100/70' : 'bg-slate-100')}>{d.isNo?'Dia inativo':'Descanso'}</td>); const cnt=sd.status==='atendido'||sd.status==='faltou_remunerada'; const val=sd.type==='terapia'?prices.terapia:prices.avaliacao; return (<td key={d.dateStr} className={'p-1.5 border-r align-top ' + (focusDay===d.dateStr ? 'bg-emerald-50' : '')}><div className="border rounded-xl p-2 space-y-1.5 bg-white">
+            <input value={sd.patientName} onChange={e=>updSlot(d.dateStr,sl,'patientName',e.target.value)} onFocus={()=>setFocusDay(d.dateStr)} onBlur={()=>setFocusDay(null)} placeholder="Paciente" className="w-full text-xs border rounded px-2 py-1 bg-slate-50"/>
+            <select value={sd.type} onChange={e=>updSlot(d.dateStr,sl,'type',e.target.value)} onFocus={()=>setFocusDay(d.dateStr)} onBlur={()=>setFocusDay(null)} className="w-full text-xs border rounded px-1 py-1 bg-indigo-50 font-semibold"><option value="terapia">Terapia R$ {Number(prices.terapia).toFixed(2).replace('.',',')}</option><option value="avaliacao">Avaliação R$ {Number(prices.avaliacao).toFixed(2).replace('.',',')}</option></select>
+            <select value={sd.status} onChange={e=>updSlot(d.dateStr,sl,'status',e.target.value)} onFocus={()=>setFocusDay(d.dateStr)} onBlur={()=>setFocusDay(null)} className="w-full text-xs border rounded px-1 py-1 font-semibold"><option value="atendido">✓ Atendido</option><option value="faltou_remunerada">⚡ Faltou (Remun.)</option><option value="faltou_nao_remunerada">✕ Faltou (Não rem.)</option><option value="inativo">— Sem atend.</option></select>
             <div className="text-[11px] flex justify-between"><span className="text-slate-400">Valor:</span><b className={cnt?'text-emerald-600':'text-slate-400 line-through'}>R$ {val.toFixed(2).replace('.',',')}</b></div>
           </div></td>)})}</tr>)})}</tbody>
         </table></div>}
