@@ -17,7 +17,7 @@
 <script type="text/babel">
 const { useState, useEffect, useMemo } = React;
 const FIXED_SUPABASE_URL = "https://vkehcheqkfnudjrvoot.supabase.co";
-const FIXED_SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZrZWhjaGVxY2tmbnVkanJ2b290Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4OTQ4NzMzOSwiZXhwIjoyMTA1MDYzMzM5fQ.y2FqI6KiHOxA2ky1fRuRVc3V3Fc8YB8y_kOhFat-Atg";
+const FIXED_SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZrZWhjaGVxY2tmbnVkanJ2b290Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODk0ODczMzksImV4cCI6MjEwNTA2MzMzOX0.x7DHwHN5NNNq-RyhYCMh5Uk3DM9Mstaic8kbUm-c5UE";
 const TIME_SLOTS = ["08:00 - 08:40","08:40 - 09:20","09:20 - 10:00","10:00 - 10:40","10:40 - 11:20","11:20 - 12:00","12:00 - 13:30","13:20 - 14:00","14:00 - 14:40","14:40 - 15:20","15:20 - 16:00","16:00 - 16:40","16:40 - 17:20","17:20 - 18:00","18:00 - 18:40","18:40 - 19:20"];
 const DAYS = [{short:'Segunda'},{short:'Terça'},{short:'Quarta'},{short:'Quinta'},{short:'Sexta'}];
 const PRICES = { terapia: 35, avaliacao: 55 };
@@ -108,8 +108,12 @@ function App(){
     e.preventDefault(); setAuthError('');
     if(loginUser.trim()===ADMIN.user&&loginPass===ADMIN.pass){ const a={id:'admin-master',name:'Administrador',username:'admin',role:'admin'}; setProfessional(a); localStorage.setItem('current_prof',JSON.stringify(a)); return; }
     if(!sb){ setAuthError('Banco não conectado. Configure a chave Anon no código.'); return; }
-    const {data,error} = await sb.from('professionals').select('*').eq('username',loginUser.trim()).single();
-    if(error||!data){ setAuthError('Usuário ou senha incorretos.'); return; }
+    let data = null;
+    try{
+      const res = await sb.from('professionals').select('*').eq('username',loginUser.trim()).single();
+      if(res.error||!res.data){ setAuthError('Usuário ou senha incorretos.'); return; }
+      data = res.data;
+    }catch(err){ setAuthError('Sem conexão com o banco de dados. Verifique sua internet/DNS e tente de novo.'); return; }
     const h = await hashPass(loginPass);
     if(h!==data.password_hash){ setAuthError('Usuário ou senha incorretos.'); return; }
     if(data.must_change_password){ setPendingForce(data); setNewPwd1(''); setNewPwd2(''); return; }
